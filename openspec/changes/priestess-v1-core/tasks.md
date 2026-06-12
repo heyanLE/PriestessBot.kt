@@ -53,19 +53,19 @@
 
 ## 6. Agent loop
 
-- [ ] 6.1 Define `Agent` data class (name, instructions, toolSet)
-- [ ] 6.2 Define `AgentRunner` interface with `reset()`, `step()`, `stepUntilDone()`, `isDone()`, `finalResponse()`
-- [ ] 6.3 Define `AgentState` state machine (IDLE, RUNNING, DONE, ERROR)
-- [ ] 6.4 Define `AgentHooks` interface (onAgentBegin, onToolStart, onToolEnd, onAgentDone)
-- [ ] 6.5 Define `AgentContext` carrying messages, agent config, tool timeout, Platform ref, MessageSession ref
-- [ ] 6.6 Define `AgentResponse` sealed class (Thinking, ToolResult, Final, Error)
-- [ ] 6.7 Define `ContextCompressStrategy` interface
-- [ ] 6.8 Implement `RoundTruncationStrategy` (keep last N rounds)
-- [ ] 6.9 Implement `TokenWindowStrategy` (trim oldest messages exceeding token limit)
-- [ ] 6.10 Implement `TokenCounter` for message token estimation
-- [ ] 6.11 Implement `ContextManager` checking if compression is needed, delegating to configured strategy
-- [ ] 6.12 Implement `ReActRunner` with Thought → Action → Observation loop: context check, LLM call, tool execution, final answer or max steps error
-- [ ] 6.13 Implement `LLMCompressStrategy` stub interface (reserved for v2, throws NotImplemented in v1)
+- [x] 6.1 Define `Agent` data class (name, instructions, toolSet)
+- [x] 6.2 Define `AgentRunner` interface with `reset()`, `step()`, `stepUntilDone()`, `isDone()`, `finalResponse()`
+- [x] 6.3 Define `AgentState` state machine (IDLE, RUNNING, DONE, ERROR)
+- [x] 6.4 Define `AgentHooks` interface (onAgentBegin, onToolStart, onToolEnd, onAgentDone)
+- [x] 6.5 Define `AgentContext` carrying messages, agent config, tool timeout, Platform ref, MessageSession ref
+- [x] 6.6 Define `AgentResponse` sealed class (Thinking, ToolResult, Final, Error)
+- [x] 6.7 Define `ContextCompressStrategy` interface
+- [x] 6.8 Implement `RoundTruncationStrategy` (keep last N rounds)
+- [x] 6.9 Implement `TokenWindowStrategy` (trim oldest messages exceeding token limit)
+- [x] 6.10 Implement `TokenCounter` for message token estimation
+- [x] 6.11 Implement `ContextManager` checking if compression is needed, delegating to configured strategy
+- [x] 6.12 Implement `ReActRunner` with Thought → Action → Observation loop: context check, LLM call, tool execution, final answer or max steps error
+- [x] 6.13 Implement `LLMCompressStrategy` stub interface (reserved for v2, throws NotImplemented in v1)
 
 ## 7. Pipeline
 

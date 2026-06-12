@@ -13,6 +13,8 @@ import com.heyanle.priestess.bot.platform.registerBuiltinPlatforms
 import com.heyanle.priestess.bot.provider.ProviderManager
 import com.heyanle.priestess.bot.provider.ProviderRegistry
 import com.heyanle.priestess.bot.provider.registerBuiltinProviders
+import com.heyanle.priestess.bot.agent.context.ContextManager
+import com.heyanle.priestess.bot.agent.context.TokenCounter
 import com.heyanle.priestess.bot.tool.ToolExecutor
 import com.heyanle.priestess.bot.tool.ToolRegistry
 import com.heyanle.priestess.bot.tool.builtin.registerBuiltinTools
@@ -75,6 +77,10 @@ val coreModule = module {
         val registry: ToolRegistry = get()
         ToolExecutor(registry = registry)
     }
+
+    // Agent — context compression
+    single { TokenCounter() }
+    single { ContextManager(tokenCounter = get()) }
 
     // Lifecycle components — lazy evaluation so later registrations are visible
     single<CoreLifecycle> {
