@@ -1,6 +1,6 @@
 ## Context
 
-项目当前仅有一个 `Main.kt` 打印 "Hello Kotlin"，build.gradle.kts 仅引入 Koin。需要从零搭建 imagent v1 核心模块，实现 IM 消息接收 → 管道处理 → Agent ReAct 循环 → 回答返回的完整闭环。一期只有单模块 `imagent-core`，无 Dashboard/插件系统，所有功能 inner 实现。
+项目当前仅有一个 `Main.kt` 打印 "Hello Kotlin"，build.gradle.kts 仅引入 Koin。需要从零搭建 PriestessBot v1 核心模块，实现 IM 消息接收 → 管道处理 → Agent ReAct 循环 → 回答返回的完整闭环。一期只有单模块 `priestess-core`，无 Dashboard/插件系统，所有功能 inner 实现。
 
 ## Goals / Non-Goals
 
@@ -18,9 +18,9 @@
 
 ## Decisions
 
-### 1. 包结构：`com.heyanle.kt.astrbot` + 按功能分子包
+### 1. 包结构：`com.heyanle.priestess.bot` + 按功能分子包
 
-选择 `com.heyanle.kt.astrbot` 作为根 package，内部按功能分子包（`core/`, `platform/`, `pipeline/` 等）。避免 `org.example` 的占位包名。每个子包内接口和实现同包（如 `platform/Platform.kt` 接口 + `platform/adapters/telegram/TelegramPlatform.kt` 实现）。
+选择 `com.heyanle.priestess.bot` 作为根 package，内部按功能分子包（`core/`, `platform/`, `pipeline/` 等）。避免 `org.example` 的占位包名。每个子包内接口和实现同包（如 `platform/Platform.kt` 接口 + `platform/adapters/telegram/TelegramPlatform.kt` 实现）。
 
 **替代方案**: 每个功能拆独立 Gradle 模块。一期过早，徒增构建复杂度，二期再拆。
 
@@ -56,7 +56,7 @@ PipelineScheduler 使用递归 + Flow 实现洋葱模型。Stage 返回 `Flow<Un
 
 ### 8. 数据库：Exposed + SQLite
 
-使用 Exposed DSL 定义 conversations 和 messages 两张表。`Database` 接口抽象，`ImagentDb` 为 SQLite 内置实现。
+使用 Exposed DSL 定义 conversations 和 messages 两张表。`Database` 接口抽象，`PriestessDb` 为 SQLite 内置实现。
 
 ### 9. Provider 请求/响应：统一 DTO
 

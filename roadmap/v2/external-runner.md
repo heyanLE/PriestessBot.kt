@@ -7,8 +7,8 @@
 `ExternalRunner` 扩展 `AgentRunner` 接口，增加平台适配能力：
 - 标准化外部 Agent 平台的输入映射（消息格式转换）
 - 标准化输出映射（响应格式转换到统一的 `AgentResponse`）
-- 流式响应适配（第三方流式 → imagent Flow）
-- Tool Call 双向转换（第三方工具格式 ↔ imagent ToolSet 格式）
+- 流式响应适配（第三方流式 → priestess Flow）
+- Tool Call 双向转换（第三方工具格式 ↔ priestess ToolSet 格式）
 
 ## 计划接入的平台
 

@@ -4,7 +4,7 @@
 
 ## What Changes
 
-- 新建 `imagent-core` 模块，包含完整的包结构和所有 v1 功能
+- 新建 `priestess-core` 模块，包含完整的包结构和所有 v1 功能
 - 实现核心生命周期编排（CoreLifecycle）与 Koin 依赖注入
 - 实现类型安全配置系统（`@Serializable` data class + JSON 持久化）
 - 实现基于 Channel 的事件总线（EventBus）
@@ -34,7 +34,7 @@
 
 ## Impact
 
-- 项目从单文件变为完整的多包 `imagent-core` 模块
+- 项目从单文件变为完整的多包 `priestess-core` 模块
 - 新增依赖：Koin、kotlinx.serialization、Exposed、Ktor Client、SQLite JDBC
 - 无 API 服务器和前端 Dashboard（二期实现）
 - 所有配置通过 JSON 文件 + inner config 管理

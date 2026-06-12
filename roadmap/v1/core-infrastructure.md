@@ -8,7 +8,7 @@
 
 ## 配置系统
 
-`ImagentConfig` 为主配置类，使用 `@Serializable` data class 实现编译期类型安全。子配置包括：
+`PriestessConfig` 为主配置类，使用 `@Serializable` data class 实现编译期类型安全。子配置包括：
 - `PlatformConfig`：IM 平台配置模板
 - `ProviderConfig`：LLM Provider 配置模板
 - `AgentConfig`：Agent 运行参数（最大步数、温度等）
@@ -25,4 +25,4 @@
 
 ## 数据库
 
-使用 Exposed ORM + SQLite，提供配置持久化和会话存储。`Database` 接口抽象数据库操作，`ImagentDb` 为内置实现。
+使用 Exposed ORM + SQLite，提供配置持久化和会话存储。`Database` 接口抽象数据库操作，`PriestessDb` 为内置实现。

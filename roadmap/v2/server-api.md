@@ -1,6 +1,6 @@
 # server-api — Dashboard API 服务
 
-基于 Ktor 3.x 提供 Dashboard 前端所需的 REST API 和实时推送能力。二期新增 `imagent-server` 模块。
+基于 Ktor 3.x 提供 Dashboard 前端所需的 REST API 和实时推送能力。二期新增 `priestess-server` 模块。
 
 ## Ktor 服务器
 

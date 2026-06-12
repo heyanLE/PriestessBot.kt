@@ -4,7 +4,7 @@
 The system SHALL provide a `CoreLifecycle` that starts and stops all submodules in dependency order: Database → EventBus → ToolRegistry → ProviderManager → PipelineScheduler → PlatformManager.
 
 #### Scenario: Startup completes successfully
-- **WHEN** `ImagentApp.main()` is invoked and all configurations are valid
+- **WHEN** `PriestessBot.main()` is invoked and all configurations are valid
 - **THEN** all submodules initialize in correct order and the system is ready to process messages
 
 #### Scenario: Startup fails on missing config
@@ -20,7 +20,7 @@ The system SHALL use `@Serializable` data classes for all configuration, persist
 
 #### Scenario: Load config from JSON file
 - **WHEN** the system starts and a valid JSON config file exists at the configured path
-- **THEN** configuration is deserialized into `ImagentConfig` with compile-time type checking
+- **THEN** configuration is deserialized into `PriestessConfig` with compile-time type checking
 
 #### Scenario: Default config generation
 - **WHEN** no config file exists at startup
