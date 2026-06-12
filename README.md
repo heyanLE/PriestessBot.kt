@@ -4,7 +4,7 @@
 
 <img src="./image/icon.jpg" alt="PriestessBot" width="128" height="128">
 
-**PriestessBot** — 基于 Kotlin 的多平台 Agent 聊天机器人框架
+**PriestessBot** — 基于 Kotlin 的 LLM Agent 聊天机器人框架
 
 [简体中文](./README.md)
 
@@ -17,7 +17,7 @@
 
 ---
 
-普瑞赛斯 Bot（PriestessBot）是一个开源的、基于 Kotlin 的多平台 Agent 聊天机器人框架。它提供类型安全、可扩展的对话 AI 基础设施，支持接入主流 IM 平台和 LLM 服务，帮助开发者快速构建生产级的 AI 应用。
+普瑞赛斯 Bot（PriestessBot）是一个开源的、基于 Kotlin 的 LLM Agent 聊天机器人框架。它提供类型安全、可扩展的对话 AI 基础设施，支持接入主流 IM 平台和 LLM 服务，帮助开发者快速构建生产级的 AI 应用。
 
 ## 特性
 
