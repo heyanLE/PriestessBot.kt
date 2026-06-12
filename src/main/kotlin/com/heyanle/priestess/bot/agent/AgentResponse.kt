@@ -1,11 +1,9 @@
 package com.heyanle.priestess.bot.agent
 
-import com.heyanle.priestess.bot.tool.ToolResult
-
 sealed class AgentResponse {
     data class Thinking(val content: String) : AgentResponse()
 
-    data class ToolResult(
+    data class ToolExecuted(
         val toolCallId: String,
         val toolName: String,
         val toolResult: com.heyanle.priestess.bot.tool.ToolResult,

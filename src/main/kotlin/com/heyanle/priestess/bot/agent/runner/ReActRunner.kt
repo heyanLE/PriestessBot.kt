@@ -75,7 +75,7 @@ class ReActRunner(
                     hooks?.onAgentError(context, response)
                     return@withLock response
                 }
-                is AgentResponse.ToolResult -> currentStep++
+                is AgentResponse.ToolExecuted -> currentStep++
                 is AgentResponse.Thinking -> currentStep++
             }
         }
@@ -183,7 +183,7 @@ class ReActRunner(
             )
             context.messages.add(toolMsg)
 
-            val toolResultResponse = AgentResponse.ToolResult(
+            val toolResultResponse = AgentResponse.ToolExecuted(
                 toolCallId = tc.id,
                 toolName = tc.name,
                 toolResult = result,

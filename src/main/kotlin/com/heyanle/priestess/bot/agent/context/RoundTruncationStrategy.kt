@@ -11,12 +11,6 @@ class RoundTruncationStrategy : ContextCompressStrategy {
      * 以 user 消息为轮次边界，从最新消息向前保留最多 [maxRounds] 个轮次。
      * 截断边界外的完整 round（assistant + toolCalls + tool results）会被整体丢弃，
      * 确保消息历史的语义完整性。
-     *
-     * 边界情况：
-     * - 如果 assistant 消息在截断边界外，其 toolCallIds 不会被加入 includedToolCallIds，
-     *   因此对应的 tool 结果消息也不会被 collectRelatedTools 收集。这是正确的行为——
-     *   整个旧 round 被丢弃。
-     * - system 消息始终被跳过（保留到末尾统一添加）。
      */
     override suspend fun compress(
         messages: List<ConversationMessage>,

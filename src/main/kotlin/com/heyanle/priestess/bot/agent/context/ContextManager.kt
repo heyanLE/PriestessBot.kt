@@ -1,17 +1,17 @@
 package com.heyanle.priestess.bot.agent.context
 
 import com.heyanle.priestess.bot.agent.Agent
+import com.heyanle.priestess.bot.agent.CompressStrategy
 import com.heyanle.priestess.bot.provider.model.ConversationMessage
 
 class ContextManager(
     private val tokenCounter: TokenCounter,
+    private val strategies: Map<CompressStrategy, ContextCompressStrategy> = mapOf(
+        CompressStrategy.ROUND_TRUNCATION to RoundTruncationStrategy(),
+        CompressStrategy.TOKEN_WINDOW to TokenWindowStrategy(tokenCounter),
+        CompressStrategy.LLM_COMPRESS to LLMCompressStrategy(),
+    ),
 ) {
-    private val strategies: Map<String, ContextCompressStrategy> = mapOf(
-        "round_truncation" to RoundTruncationStrategy(),
-        "token_window" to TokenWindowStrategy(tokenCounter),
-        "llm_compress" to LLMCompressStrategy(),
-    )
-
     suspend fun compress(
         agent: Agent,
         messages: List<ConversationMessage>,
@@ -20,8 +20,8 @@ class ContextManager(
         maxRounds: Int = -1,
     ): List<ConversationMessage> {
         if (messages.isEmpty()) return messages
-        val effectiveMaxRounds = if (maxRounds > 0) maxRounds else 20
-        val effectiveMaxTokens = if (maxTokens > 0) maxTokens else 8000
+        val effectiveMaxRounds = if (maxRounds > 0) maxRounds else agent.maxContextRounds
+        val effectiveMaxTokens = if (maxTokens > 0) maxTokens else agent.maxContextTokens
         if (!needsCompression(messages, effectiveMaxTokens, effectiveMaxRounds)) {
             return messages
         }
@@ -42,6 +42,7 @@ class ContextManager(
     }
 
     private fun getStrategy(agent: Agent): ContextCompressStrategy {
-        return strategies[agent.compressStrategy] ?: strategies["round_truncation"]!!
+        return strategies[agent.compressStrategy]
+            ?: error("Unknown compress strategy: ${agent.compressStrategy}")
     }
 }

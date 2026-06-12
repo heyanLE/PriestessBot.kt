@@ -21,6 +21,14 @@ class TokenCounter {
         return requestOverhead + messages.sumOf { count(it) }
     }
 
+    /**
+     * 估算文本的 token 数量。
+     *
+     * 算法基于常见 LLM 的分词规律：
+     * - 中文字符约 0.5-0.7 token/字符，取 1/1.5 ≈ 0.67
+     * - 英文字符约 0.25-0.3 token/字符，取 1/4.0 ≈ 0.25
+     * - 最终结果取整并至少为 1
+     */
     private fun estimateTokens(text: String?): Int {
         if (text.isNullOrBlank()) return 0
         val totalChars = text.length
@@ -28,6 +36,6 @@ class TokenCounter {
         val otherChars = totalChars - chineseChars
         val chineseTokens = chineseChars / 1.5
         val otherTokens = otherChars / 4.0
-        return ((chineseTokens + otherTokens) / 2.0).toInt().coerceAtLeast(1)
+        return (chineseTokens + otherTokens).toInt().coerceAtLeast(1)
     }
 }

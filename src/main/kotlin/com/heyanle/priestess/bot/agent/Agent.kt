@@ -6,5 +6,7 @@ data class Agent(
     val model: String,
     val maxSteps: Int = 10,
     val toolTimeoutMs: Long = 30_000L,
-    val compressStrategy: String = "round_truncation",
+    val compressStrategy: CompressStrategy = CompressStrategy.ROUND_TRUNCATION,
+    val maxContextTokens: Int = 8000,
+    val maxContextRounds: Int = 20,
 )
