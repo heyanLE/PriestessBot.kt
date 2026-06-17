@@ -1,5 +1,6 @@
 package com.heyanle.priestess.bot.core.config
 
+import com.heyanle.priestess.bot.pipeline.PipelineConfig
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -8,6 +9,7 @@ data class PriestessConfig(
     val providers: List<ProviderConfig> = emptyList(),
     val agent: AgentConfig = AgentConfig(),
     val database: DatabaseConfig = DatabaseConfig(),
+    val pipeline: PipelineConfig = PipelineConfig(),
 )
 
 @Serializable

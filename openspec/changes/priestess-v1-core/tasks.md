@@ -69,25 +69,25 @@
 
 ## 7. Pipeline
 
-- [ ] 7.1 Define `Stage` interface with `name`, `order`, `initialize(ctx)`, `process(event): Flow<Unit>?`
-- [ ] 7.2 Define `StageOrder` enum for the 9 stages
-- [ ] 7.3 Define `PipelineContext` carrying event, response, and cross-stage shared data
-- [ ] 7.4 Implement `PipelineScheduler` with recursive Flow-based onion model executor
-- [ ] 7.5 Implement `WakingCheckStage` (mention detection, prefix matching, private message bypass)
-- [ ] 7.6 Implement `WhitelistCheckStage` (user/group whitelist filtering)
-- [ ] 7.7 Implement `SessionStatusStage` (session enabled/disabled check)
-- [ ] 7.8 Implement `RateLimitStage` (per-user/per-session frequency limiting)
-- [ ] 7.9 Implement `ContentSafetyStage` (placeholder content filtering hook)
-- [ ] 7.10 Implement `PreProcessStage` (inject System Prompt, load history from ConversationManager, attach Skill instructions) — onion model: pre-injection → yield → post-cleanup
-- [ ] 7.11 Implement `ProcessStage` (create ReActRunner factory instance, call stepUntilDone) — onion model: pre-init → yield → post-capture
-- [ ] 7.12 Implement `ResultDecorateStage` (format response, Markdown rendering placeholder)
-- [ ] 7.13 Implement `RespondStage` (send final response via Platform.sendMessage, persist conversation)
+- [x] 7.1 Define `Stage` interface with `name`, `order`, `initialize(ctx)`, `process(event): Flow<Unit>?`
+- [x] 7.2 Define `StageOrder` enum for the 9 stages
+- [x] 7.3 Define `PipelineContext` carrying event, response, and cross-stage shared data
+- [x] 7.4 Implement `PipelineScheduler` with recursive Flow-based onion model executor
+- [x] 7.5 Implement `WakingCheckStage` (mention detection, prefix matching, private message bypass)
+- [x] 7.6 Implement `WhitelistCheckStage` (user/group whitelist filtering)
+- [x] 7.7 Implement `SessionStatusStage` (session enabled/disabled check)
+- [x] 7.8 Implement `RateLimitStage` (per-user/per-session frequency limiting)
+- [x] 7.9 Implement `ContentSafetyStage` (placeholder content filtering hook)
+- [x] 7.10 Implement `PreProcessStage` (inject System Prompt, load history from ConversationManager, attach Skill instructions) — onion model: pre-injection → yield → post-cleanup
+- [x] 7.11 Implement `ProcessStage` (create ReActRunner factory instance, call stepUntilDone) — onion model: pre-init → yield → post-capture
+- [x] 7.12 Implement `ResultDecorateStage` (format response, Markdown rendering placeholder)
+- [x] 7.13 Implement `RespondStage` (send final response via Platform.sendMessage, persist conversation)
 
 ## 8. Skill management
 
-- [ ] 8.1 Define `Skill` interface with name, description, priority, canHandle(), execute()
-- [ ] 8.2 Implement `SkillManager` with register, sortByPriority, dispatch
-- [ ] 8.3 Implement `DefaultSkill` fallback handler returning a generic response
+- [x] 8.1 Define `Skill` interface with name, description, priority, canHandle(), execute()
+- [x] 8.2 Implement `SkillManager` with register, sortByPriority, dispatch
+- [x] 8.3 Implement `DefaultSkill` fallback handler returning a generic response
 
 ## 9. Integration & wiring
 
