@@ -1,12 +1,11 @@
 package com.heyanle.priestess.bot.platform
 
-import com.heyanle.priestess.bot.core.event.EventBus
 import com.heyanle.priestess.bot.platform.adapters.napcat4_18_6.NapCatConfig
 import com.heyanle.priestess.bot.platform.adapters.napcat4_18_6.NapCatPlatform
 import com.heyanle.priestess.bot.platform.adapters.telegram.TelegramConfig
 import com.heyanle.priestess.bot.platform.adapters.telegram.TelegramPlatform
 
-fun registerBuiltinPlatforms(eventBus: EventBus) {
+fun registerBuiltinPlatforms() {
     PlatformRegistry.registerMeta(
         metadata = PlatformMetadata(
             name = "telegram",
@@ -16,7 +15,6 @@ fun registerBuiltinPlatforms(eventBus: EventBus) {
         ),
         factory = { cfg ->
             TelegramPlatform(
-                eventBus = eventBus,
                 config = TelegramConfig(
                     token = cfg?.token ?: "",
                     name = cfg?.name ?: "telegram",
@@ -35,11 +33,11 @@ fun registerBuiltinPlatforms(eventBus: EventBus) {
         ),
         factory = { cfg ->
             NapCatPlatform(
-                eventBus = eventBus,
                 config = NapCatConfig(
                     host = cfg?.host ?: "127.0.0.1",
                     port = cfg?.port ?: 3000,
                     wsPort = cfg?.wsPort ?: 3001,
+                    token = cfg?.token ?: "",
                     useWs = cfg?.useWs ?: true,
                     name = cfg?.name ?: "napcat4_18_6",
                     displayName = "NapCat v4.18.6 (QQ)",

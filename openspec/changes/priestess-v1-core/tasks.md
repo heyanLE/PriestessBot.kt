@@ -3,10 +3,10 @@
 - [x] 1.1 Rename root package from `org.example` to `com.heyanle.priestess.bot`, create base package structure under `src/main/kotlin/com/heyanle/kt/astrbot/`
 - [x] 1.2 Define `PriestessConfig`, `PlatformConfig`, `ProviderConfig`, `AgentConfig` as `@Serializable` data classes with defaults
 - [x] 1.3 Implement JSON config loading and default generation
-- [x] 1.4 Create `CoreLifecycle` with ordered startup/shutdown: DB → EventBus → ToolRegistry → ProviderManager → PipelineScheduler → PlatformManager
+- [x] 1.4 Create `CoreLifecycle` with ordered startup/shutdown: DB -> EventBus -> ToolRegistry -> ProviderManager -> PipelineScheduler -> PlatformManager
 - [x] 1.5 Create `CoreModule` Koin DI module registering all components (`single` for singletons, `factory` for AgentRunner)
 - [x] 1.6 Implement `EventBus` using `Channel<Event>(Channel.BUFFERED)` with sealed `Event` class (MessageEvent, SystemEvent, ControlEvent)
-- [x] 1.7 Create `PriestessBot.kt` entry point wiring Config → DI → CoreLifecycle
+- [x] 1.7 Create `PriestessBot.kt` entry point wiring Config -> DI -> CoreLifecycle
 
 ## 2. Database & persistence
 
@@ -64,7 +64,7 @@
 - [x] 6.9 Implement `TokenWindowStrategy` (trim oldest messages exceeding token limit)
 - [x] 6.10 Implement `TokenCounter` for message token estimation
 - [x] 6.11 Implement `ContextManager` checking if compression is needed, delegating to configured strategy
-- [x] 6.12 Implement `ReActRunner` with Thought → Action → Observation loop: context check, LLM call, tool execution, final answer or max steps error
+- [x] 6.12 Implement `ReActRunner` with Thought -> Action -> Observation loop: context check, LLM call, tool execution, final answer or max steps error
 - [x] 6.13 Implement `LLMCompressStrategy` stub interface (reserved for v2, throws NotImplemented in v1)
 
 ## 7. Pipeline
@@ -78,8 +78,8 @@
 - [x] 7.7 Implement `SessionStatusStage` (session enabled/disabled check)
 - [x] 7.8 Implement `RateLimitStage` (per-user/per-session frequency limiting)
 - [x] 7.9 Implement `ContentSafetyStage` (placeholder content filtering hook)
-- [x] 7.10 Implement `PreProcessStage` (inject System Prompt, load history from ConversationManager, attach Skill instructions) — onion model: pre-injection → yield → post-cleanup
-- [x] 7.11 Implement `ProcessStage` (create ReActRunner factory instance, call stepUntilDone) — onion model: pre-init → yield → post-capture
+- [x] 7.10 Implement `PreProcessStage` (inject System Prompt, load history from ConversationManager, attach Skill instructions) - onion model: pre-injection -> yield -> post-cleanup
+- [x] 7.11 Implement `ProcessStage` (create ReActRunner factory instance, call stepUntilDone) - onion model: pre-init -> yield -> post-capture
 - [x] 7.12 Implement `ResultDecorateStage` (format response, Markdown rendering placeholder)
 - [x] 7.13 Implement `RespondStage` (send final response via Platform.sendMessage, persist conversation)
 
@@ -91,8 +91,10 @@
 
 ## 9. Integration & wiring
 
-- [ ] 9.1 Wire PlatformManager → EventBus → PipelineScheduler → all Stages in CoreLifecycle startup order
-- [ ] 9.2 Ensure AgentRunner factory scope creates new instance per ProcessStage invocation
-- [ ] 9.3 Test full message flow: NapCat/Telegram receive → Pipeline (all stages) → ReAct → LLM → Tool → Respond
-- [ ] 9.4 Add comprehensive logging (SLF4J) across all modules with consistent log levels
-- [ ] 9.5 Verify config file persistence with manual edit → reload → apply cycle
+- [x] 9.1 Wire `PlatformController` -> `PlatformCase` -> `PipelineCase` -> `PipelineController`, with only `PlatformController` eagerly resolved at startup
+- [x] 9.2 Ensure `PipelineController` owns Stage registration/order internally and no Stage is registered as a DI singleton
+- [x] 9.3 Ensure `ProcessStage` creates a fresh `ReActRunner` per message invocation instead of sharing runner state
+- [x] 9.4 Test full message flow: NapCat/Telegram receive -> PlatformCase -> Pipeline (all stages) -> ReAct -> LLM -> Tool -> Respond
+- [x] 9.5 Add comprehensive logging (`kotlin-logging` + Logback/SLF4J backend) across controllers and pipeline stages with consistent log levels
+- [x] 9.6 Verify config persistence/update flow: manual edit or `ConfigCase.update()` -> save -> reload -> controller flow applies updated values
+- [x] 9.7 Add NapCat adapter tests: parser unit coverage plus opt-in local WebSocket integration probe with token support

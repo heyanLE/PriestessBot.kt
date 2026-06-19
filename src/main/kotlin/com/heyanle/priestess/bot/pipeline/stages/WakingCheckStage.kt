@@ -1,11 +1,11 @@
 package com.heyanle.priestess.bot.pipeline.stages
 
-import com.heyanle.priestess.bot.pipeline.PipelineConfig
+import com.heyanle.priestess.bot.config.PipelineConfig
 import com.heyanle.priestess.bot.pipeline.PipelineContext
 import com.heyanle.priestess.bot.pipeline.Stage
 import com.heyanle.priestess.bot.pipeline.StageOrder
 import com.heyanle.priestess.bot.platform.MessageComponent
-import com.heyanle.priestess.bot.platform.SessionType
+import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.Flow
 class WakingCheckStage(
     private val config: PipelineConfig,
 ) : Stage {
+    private val logger = KotlinLogging.logger {}
 
     override val name = "WakingCheck"
     override val order = StageOrder.WAKING_CHECK
@@ -32,22 +33,24 @@ class WakingCheckStage(
         val text = ctx.textContent.trim()
 
         // 检查是否 @提及了机器人
-        val hasAtMention = ctx.event.chain.components.any { component ->
-            component is MessageComponent.At
-        }
+        val selfId = ctx.event.session.metadata["selfId"]
+        val hasBotAtMention = selfId != null &&
+            ctx.event.chain.components.any { component ->
+                component is MessageComponent.At && component.userId == selfId
+            }
 
         // 检查是否有命令前缀
         val hasPrefix = config.wakingPrefix.isNotEmpty() && text.startsWith(config.wakingPrefix)
 
-        if (!hasAtMention && !hasPrefix) {
+        if (!hasBotAtMention && !hasPrefix) {
             ctx.stop()
-            log("Group message without @mention or prefix, stopping pipeline")
+            log("Group message without bot @mention or prefix, stopping pipeline")
         }
 
         return null
     }
 
     private fun log(message: String) {
-        println("[WakingCheck] $message")
+        logger.info { message }
     }
 }

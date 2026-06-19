@@ -1,10 +1,11 @@
 package com.heyanle.priestess.bot.pipeline.stages
 
-import com.heyanle.priestess.bot.pipeline.PipelineConfig
+import com.heyanle.priestess.bot.config.PipelineConfig
 import com.heyanle.priestess.bot.pipeline.PipelineContext
 import com.heyanle.priestess.bot.pipeline.Stage
 import com.heyanle.priestess.bot.pipeline.StageOrder
 import com.heyanle.priestess.bot.platform.SessionType
+import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -15,6 +16,7 @@ import kotlinx.coroutines.flow.Flow
 class WhitelistCheckStage(
     private val config: PipelineConfig,
 ) : Stage {
+    private val logger = KotlinLogging.logger {}
 
     override val name = "WhitelistCheck"
     override val order = StageOrder.WHITELIST_CHECK
@@ -44,6 +46,6 @@ class WhitelistCheckStage(
     }
 
     private fun log(message: String) {
-        println("[WhitelistCheck] $message")
+        logger.info { message }
     }
 }

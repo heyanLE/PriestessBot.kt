@@ -8,7 +8,7 @@ import kotlinx.serialization.json.jsonObject
  * and invoking the corresponding [FunctionTool.execute].
  */
 class ToolExecutor(
-    private val registry: ToolRegistry,
+    private val registry: ToolController,
 ) {
     private val json = Json { ignoreUnknownKeys = true }
 

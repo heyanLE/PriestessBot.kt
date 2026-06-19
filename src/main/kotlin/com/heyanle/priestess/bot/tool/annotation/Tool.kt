@@ -2,7 +2,7 @@ package com.heyanle.priestess.bot.tool.annotation
 
 /**
  * Annotation to mark a class as a tool that should be auto-registered
- * by the ToolRegistry.
+ * by the ToolController.
  *
  * Classes annotated with @Tool must extend [com.heyanle.priestess.bot.tool.FunctionTool].
  *

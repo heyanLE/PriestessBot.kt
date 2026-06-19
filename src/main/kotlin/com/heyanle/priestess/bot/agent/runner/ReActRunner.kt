@@ -7,7 +7,7 @@ import com.heyanle.priestess.bot.provider.model.ConversationMessage
 import com.heyanle.priestess.bot.provider.model.LLMRequest
 import com.heyanle.priestess.bot.tool.AgentToolContext
 import com.heyanle.priestess.bot.tool.ToolExecutor
-import com.heyanle.priestess.bot.tool.ToolRegistry
+import com.heyanle.priestess.bot.tool.ToolController
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -25,7 +25,7 @@ class ReActRunner(
     private val context: AgentContext,
     private val provider: ChatProvider,
     private val toolExecutor: ToolExecutor,
-    private val toolRegistry: ToolRegistry,
+    private val toolRegistry: ToolController,
     private val contextManager: ContextManager,
     private val hooks: AgentHooks? = null,
 ) : AgentRunner {

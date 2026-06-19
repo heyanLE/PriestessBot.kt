@@ -1,7 +1,6 @@
 package com.heyanle.priestess.bot.core.db
 
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import com.heyanle.priestess.bot.core.controller.BaseController
 import org.jetbrains.exposed.sql.Database
 import org.jetbrains.exposed.sql.SchemaUtils
 import org.jetbrains.exposed.sql.Table
@@ -32,51 +31,63 @@ object MessagesTable : Table("messages") {
     override val primaryKey = PrimaryKey(id)
 }
 
-class PriestessDb(private val dbPath: String) : AppDatabase {
+/**
+ * Owns the Exposed database connection and schema initialization.
+ *
+ * The connection is opened during construction so downstream controllers can use
+ * transactions immediately when they are lazily resolved. [stop] closes and
+ * unregisters the database connection before cancelling controller tasks.
+ */
+class DatabaseController(private val dbPath: String) : BaseController("DatabaseController"), AppDatabase {
 
     @Volatile
     private var exposedDb: Database? = null
     private val lock = ReentrantLock()
 
-    override suspend fun start() {
-        open()
-    }
-
-    override suspend fun stop() {
-        close()
+    init {
+        openBlocking()
     }
 
     override suspend fun open() {
-        withContext(Dispatchers.IO) {
-            lock.withLock {
-                if (exposedDb != null) return@withContext
-                val db = Database.connect(
-                    url = "jdbc:sqlite:$dbPath",
-                    driver = "org.sqlite.JDBC",
+        openBlocking()
+    }
+
+    private fun openBlocking() {
+        lock.withLock {
+            if (exposedDb != null) return
+            val db = Database.connect(
+                url = "jdbc:sqlite:$dbPath",
+                driver = "org.sqlite.JDBC",
+            )
+            exposedDb = db
+            transaction(db) {
+                SchemaUtils.createMissingTablesAndColumns(
+                    ConversationsTable,
+                    MessagesTable,
                 )
-                exposedDb = db
-                transaction(db) {
-                    SchemaUtils.createMissingTablesAndColumns(
-                        ConversationsTable,
-                        MessagesTable,
-                    )
+                try {
                     exec("PRAGMA journal_mode=WAL;")
+                } catch (e: Exception) {
+                    logger.warn(e) { "Failed to enable SQLite WAL mode; continuing with default journal mode" }
                 }
             }
         }
     }
 
     override suspend fun close() {
-        withContext(Dispatchers.IO) {
-            lock.withLock {
-                val db = exposedDb ?: return@withContext
-                try {
-                    TransactionManager.closeAndUnregister(db)
-                } finally {
-                    exposedDb = null
-                }
+        lock.withLock {
+            val db = exposedDb ?: return
+            try {
+                TransactionManager.closeAndUnregister(db)
+            } finally {
+                exposedDb = null
             }
         }
+    }
+
+    override suspend fun stop() {
+        close()
+        super.stop()
     }
 
     fun <T> execute(block: () -> T): T {

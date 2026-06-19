@@ -1,6 +1,6 @@
 package com.heyanle.priestess.bot.provider.adapters.openai
 
-import com.heyanle.priestess.bot.core.config.ProviderConfig
+import com.heyanle.priestess.bot.config.ProviderConfig
 import com.heyanle.priestess.bot.provider.*
 import com.heyanle.priestess.bot.provider.model.*
 import io.ktor.client.*
@@ -10,6 +10,7 @@ import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.request.*
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
+import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.serialization.json.*
 
 class OpenAIProvider(
@@ -22,21 +23,39 @@ class OpenAIProvider(
         supportVision = true,
         supportStreaming = true,
     ),
+    private val client: HttpClient = defaultClient(),
 ) : ChatProvider {
 
-    private val client = HttpClient(CIO) {
-        install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
-    }
+    private val logger = KotlinLogging.logger {}
 
-    private val baseUrl: String
-        get() = config.baseUrl.ifBlank { "https://api.openai.com/v1" }
+    private val configuredUrl: String
+        get() = config.baseUrl.ifBlank { "https://api.openai.com/v1" }.trimEnd('/')
+
+    private val chatCompletionsUrl: String
+        get() = if (configuredUrl.endsWith("/chat/completions")) {
+            configuredUrl
+        } else {
+            "$configuredUrl/chat/completions"
+        }
+
+    private val modelsUrl: String
+        get() = if (configuredUrl.endsWith("/chat/completions")) {
+            configuredUrl.removeSuffix("/chat/completions") + "/models"
+        } else {
+            "$configuredUrl/models"
+        }
 
     override suspend fun textChat(request: LLMRequest): LLMResponse {
-        val response = client.post("$baseUrl/chat/completions") {
+        val model = request.model.ifBlank { config.model }
+        logger.info {
+            "[PIPELINE-230] OpenAIProvider request provider=${metadata.name}, model=$model, " +
+                "url=$chatCompletionsUrl, messages=${request.messages.size}, tools=${request.tools.size}"
+        }
+        val response = client.post(chatCompletionsUrl) {
             contentType(ContentType.Application.Json)
             header("Authorization", "Bearer ${config.resolveApiKey()}")
             setBody(buildJsonObject {
-                put("model", request.model.ifBlank { config.model })
+                put("model", model)
                 put("messages", buildJsonArray {
                     for (msg in request.messages) {
                         add(buildJsonObject {
@@ -44,6 +63,20 @@ class OpenAIProvider(
                             msg.content?.let { put("content", it) }
                             msg.toolCallId?.let { put("tool_call_id", it) }
                             msg.name?.let { put("name", it) }
+                            msg.toolCalls?.let { calls ->
+                                put("tool_calls", buildJsonArray {
+                                    for (call in calls) {
+                                        add(buildJsonObject {
+                                            put("id", call.id)
+                                            put("type", "function")
+                                            putJsonObject("function") {
+                                                put("name", call.name)
+                                                put("arguments", call.arguments)
+                                            }
+                                        })
+                                    }
+                                })
+                            }
                         })
                     }
                 })
@@ -55,11 +88,17 @@ class OpenAIProvider(
             })
         }
         val body = response.body<JsonObject>()
-        return parseResponse(body)
+        val parsed = parseResponse(body)
+        logger.info {
+            "[PIPELINE-239] OpenAIProvider response provider=${metadata.name}, " +
+                "finish=${parsed.finishReason}, toolCalls=${parsed.toolCalls.size}, " +
+                "contentLength=${parsed.content.length}, totalTokens=${parsed.tokenUsage.totalTokens}"
+        }
+        return parsed
     }
 
     override suspend fun getModels(): List<String> {
-        val response = client.get("$baseUrl/models") {
+        val response = client.get(modelsUrl) {
             header("Authorization", "Bearer ${config.resolveApiKey()}")
         }
         val body = response.body<JsonObject>()
@@ -96,5 +135,13 @@ class OpenAIProvider(
             totalTokens = usage?.get("total_tokens")?.jsonPrimitive?.int ?: 0,
         )
         return LLMResponse(content, toolCalls, finishReason, tokenUsage)
+    }
+
+    companion object {
+        private fun defaultClient(): HttpClient {
+            return HttpClient(CIO) {
+                install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
+            }
+        }
     }
 }

@@ -4,6 +4,7 @@ import com.heyanle.priestess.bot.pipeline.PipelineContext
 import com.heyanle.priestess.bot.pipeline.Stage
 import com.heyanle.priestess.bot.pipeline.StageOrder
 import com.heyanle.priestess.bot.platform.MessageChain
+import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -13,6 +14,7 @@ import kotlinx.coroutines.flow.Flow
  * 负责会话持久化已在 PreProcessStage 的后置逻辑中处理。
  */
 class RespondStage : Stage {
+    private val logger = KotlinLogging.logger {}
 
     override val name = "Respond"
     override val order = StageOrder.RESPOND
@@ -22,7 +24,7 @@ class RespondStage : Stage {
         val responseType = ctx.shared["responseType"] as? String ?: "text"
 
         if (responseText.isNullOrBlank()) {
-            log("No response to send, skipping")
+            log("[PIPELINE-391] Respond no response to send, skipping")
             return null
         }
 
@@ -31,17 +33,20 @@ class RespondStage : Stage {
 
         try {
             val chain = MessageChain.text(responseText)
+            log(
+                "[PIPELINE-310] Respond sending response platform=${platform.metadata.name}, " +
+                    "session=${session.id}, type=$responseType, length=${responseText.length}"
+            )
             platform.sendMessage(session, chain)
-            log("Response sent (type=$responseType): ${responseText.take(100)}...")
+            log("[PIPELINE-319] Respond sent response preview='${responseText.take(100)}'")
         } catch (e: Exception) {
-            System.err.println("[Respond] Failed to send message: ${e.message}")
-            e.printStackTrace()
+            logger.error(e) { "[PIPELINE-993] Failed to send message" }
         }
 
         return null
     }
 
     private fun log(message: String) {
-        println("[Respond] $message")
+        logger.info { message }
     }
 }

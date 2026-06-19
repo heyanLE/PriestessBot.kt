@@ -2,15 +2,22 @@ package com.heyanle.priestess.bot.conversation
 
 import com.heyanle.priestess.bot.core.db.ConversationsTable
 import com.heyanle.priestess.bot.core.db.MessagesTable
-import com.heyanle.priestess.bot.core.db.PriestessDb
+import com.heyanle.priestess.bot.core.db.DatabaseController
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import java.util.UUID
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.hours
 
-class ConversationManager(
-    private val db: PriestessDb,
+/**
+ * Owns conversation session records stored in the database.
+ *
+ * This controller is responsible for creating, finding, updating, deleting, and
+ * expiring conversation rows. Message history is kept in [MessageHistory], and
+ * higher-level pipeline code should use ConversationCase to coordinate both.
+ */
+class ConversationController(
+    private val db: DatabaseController,
     private val expirationDuration: Duration = 24.hours,
 ) {
 

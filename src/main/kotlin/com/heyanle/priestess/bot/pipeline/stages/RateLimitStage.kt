@@ -1,9 +1,10 @@
 package com.heyanle.priestess.bot.pipeline.stages
 
-import com.heyanle.priestess.bot.pipeline.PipelineConfig
+import com.heyanle.priestess.bot.config.PipelineConfig
 import com.heyanle.priestess.bot.pipeline.PipelineContext
 import com.heyanle.priestess.bot.pipeline.Stage
 import com.heyanle.priestess.bot.pipeline.StageOrder
+import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.flow.Flow
 import java.util.Deque
 import java.util.LinkedList
@@ -17,6 +18,7 @@ import java.util.concurrent.ConcurrentHashMap
 class RateLimitStage(
     private val config: PipelineConfig,
 ) : Stage {
+    private val logger = KotlinLogging.logger {}
 
     override val name = "RateLimit"
     override val order = StageOrder.RATE_LIMIT
@@ -60,6 +62,6 @@ class RateLimitStage(
     }
 
     private fun log(message: String) {
-        println("[RateLimit] $message")
+        logger.info { message }
     }
 }

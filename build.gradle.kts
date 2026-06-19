@@ -17,7 +17,10 @@ repositories {
 
 dependencies {
     testImplementation(kotlin("test"))
+    testImplementation("io.ktor:ktor-client-mock:3.0.3")
     implementation("io.insert-koin:koin-core:4.0.2")
+    implementation("io.github.oshai:kotlin-logging-jvm:7.0.13")
+    implementation("ch.qos.logback:logback-classic:1.5.18")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
     implementation("org.jetbrains.exposed:exposed-core:0.51.1")
@@ -37,4 +40,8 @@ kotlin {
 
 tasks.test {
     useJUnitPlatform()
+    testLogging {
+        showStandardStreams = true
+        events("passed", "skipped", "failed", "standardOut", "standardError")
+    }
 }

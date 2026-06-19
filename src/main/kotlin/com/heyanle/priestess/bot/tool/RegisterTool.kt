@@ -2,7 +2,7 @@ package com.heyanle.priestess.bot.tool
 
 /**
  * Annotation to mark a class as a tool that should be auto-registered
- * by the ToolRegistry.
+ * by the ToolController.
  *
  * @deprecated Use [com.heyanle.priestess.bot.tool.annotation.Tool] instead.
  */

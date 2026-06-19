@@ -1,7 +1,7 @@
 package com.heyanle.priestess.bot.conversation
 
 import com.heyanle.priestess.bot.core.db.MessagesTable
-import com.heyanle.priestess.bot.core.db.PriestessDb
+import com.heyanle.priestess.bot.core.db.DatabaseController
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import java.util.UUID
@@ -24,7 +24,7 @@ data class StoredMessage(
 )
 
 class MessageHistory(
-    private val db: PriestessDb,
+    private val db: DatabaseController,
 ) {
 
     fun store(

@@ -1,8 +1,6 @@
 package com.heyanle.priestess.bot.platform
 
 import kotlinx.coroutines.Job
-import com.heyanle.priestess.bot.core.event.Event
-import com.heyanle.priestess.bot.core.event.EventBus
 import java.util.concurrent.atomic.AtomicBoolean
 
 sealed class MessageComponent {
@@ -41,8 +39,8 @@ class MessageEvent(
     val chain: MessageChain,
     val messageId: String = "",
     val timestamp: Long = System.currentTimeMillis(),
-    override val sourceId: String = "",
-) : Event {
+    val sourceId: String = "",
+) {
     val isStopped: AtomicBoolean = AtomicBoolean(false)
 
     fun stopPropagation() {
@@ -76,15 +74,27 @@ abstract class AdapterConfig {
     abstract val displayName: String
 }
 
-abstract class Platform(val eventBus: EventBus) {
+data class PlatformMetadata(
+    val name: String,
+    val displayName: String,
+    val supportStreaming: Boolean,
+    val supportProactiveMessage: Boolean,
+)
+
+abstract class Platform {
     abstract val metadata: PlatformMetadata
+    private var messageHandler: suspend (MessageEvent) -> Unit = {}
 
     abstract suspend fun run(): Job
     abstract suspend fun terminate()
     abstract suspend fun sendMessage(session: MessageSession, chain: MessageChain)
 
+    fun setMessageHandler(handler: suspend (MessageEvent) -> Unit) {
+        messageHandler = handler
+    }
+
     protected suspend fun commitEvent(event: MessageEvent) {
-        eventBus.send(event)
+        messageHandler(event)
     }
 
     open suspend fun webhookCallback(request: Any): Any {

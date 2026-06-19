@@ -1,104 +1,84 @@
 package com.heyanle.priestess.bot.pipeline.stages
 
-import com.heyanle.priestess.bot.agent.AgentContext
 import com.heyanle.priestess.bot.agent.AgentHooks
 import com.heyanle.priestess.bot.agent.AgentResponse
-import com.heyanle.priestess.bot.agent.AgentRunner
 import com.heyanle.priestess.bot.agent.context.ContextManager
 import com.heyanle.priestess.bot.agent.runner.ReActRunner
 import com.heyanle.priestess.bot.pipeline.PipelineContext
 import com.heyanle.priestess.bot.pipeline.Stage
 import com.heyanle.priestess.bot.pipeline.StageOrder
-import com.heyanle.priestess.bot.provider.ChatProvider
-import com.heyanle.priestess.bot.provider.ProviderManager
+import com.heyanle.priestess.bot.provider.ProviderCase
+import com.heyanle.priestess.bot.provider.model.ConversationMessage
+import com.heyanle.priestess.bot.tool.ToolController
 import com.heyanle.priestess.bot.tool.ToolExecutor
-import com.heyanle.priestess.bot.tool.ToolRegistry
+import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 
-/**
- * Agent 执行阶段（洋葱模型内层）。
- *
- * **前置逻辑**：创建 [ReActRunner] 实例并调用 [AgentRunner.stepUntilDone]
- * **后置逻辑**：将 Agent 最终响应存入 [PipelineContext.agentResponse]，清理 Runner
- *
- * 洋葱模型：创建 Runner → 执行 ReAct 循环 → 收集最终响应
- */
 class ProcessStage(
-    private val providerManager: ProviderManager,
+    private val providerCase: ProviderCase,
     private val toolExecutor: ToolExecutor,
-    private val toolRegistry: ToolRegistry,
+    private val toolController: ToolController,
     private val contextManager: ContextManager,
     private val hooks: AgentHooks? = null,
 ) : Stage {
 
+    private val logger = KotlinLogging.logger {}
+
     override val name = "Process"
     override val order = StageOrder.PROCESS
 
-    override suspend fun process(ctx: PipelineContext): Flow<Unit> = flow {
-        // === 前置逻辑：创建 ReActRunner 并执行 ===
-
+    override suspend fun process(ctx: PipelineContext): Flow<Unit>? {
         val agentContext = ctx.agentContext
         if (agentContext == null) {
-            System.err.println("[Process] AgentContext is null, cannot execute agent")
+            logger.error { "[PIPELINE-991] AgentContext is null, cannot execute agent" }
             ctx.agentResponse = AgentResponse.Error("AgentContext not initialized")
-            return@flow
+            return null
         }
 
-        // 从 AgentContext 中获取 agent 配置的 model，从 ProviderManager 获取对应 provider
         val agent = agentContext.agent
-        val providerConfig = com.heyanle.priestess.bot.core.config.ProviderConfig(
-            name = agent.model,
-            type = agent.model,
-            model = agent.model,
-        )
-        val provider = providerManager.getByName(agent.model)
-            ?: providerManager.getAll().firstOrNull()
+        val provider = providerCase.getByName(agent.model)
+            ?: providerCase.getAll().firstOrNull()
 
         if (provider == null) {
-            System.err.println("[Process] No provider available for model '${agent.model}'")
+            logger.error { "[PIPELINE-992] No provider available for model '${agent.model}'" }
             ctx.agentResponse = AgentResponse.Error("No LLM provider available")
-            return@flow
+            return null
         }
 
-        // 注入用户消息到 AgentContext
-        agentContext.messages.add(
-            com.heyanle.priestess.bot.provider.model.ConversationMessage.user(ctx.textContent)
-        )
+        agentContext.messages.add(ConversationMessage.user(ctx.textContent))
+        logger.info {
+            "[PIPELINE-210] Process selected provider=${provider.metadata.name}, agent=${agent.name}, " +
+                "model=${agent.model}, messages=${agentContext.messages.size}, tools=${toolController.size()}"
+        }
 
-        // 创建 ReActRunner
         val runner = ReActRunner(
             context = agentContext,
             provider = provider,
             toolExecutor = toolExecutor,
-            toolRegistry = toolRegistry,
+            toolRegistry = toolController,
             contextManager = contextManager,
             hooks = hooks,
         )
 
-        // 执行 ReAct 循环
-        log("Executing ReAct loop for agent='${agent.name}', model='${agent.model}'")
+        logger.info { "[PIPELINE-220] Process executing ReAct loop agent=${agent.name}, model=${agent.model}" }
         val response = runner.stepUntilDone()
-
         ctx.agentResponse = response
 
-        // === 后置逻辑：清理 ===
         when (response) {
             is AgentResponse.Final -> {
-                log("Agent completed successfully, response length=${response.content.length}")
+                logger.info { "[PIPELINE-229] Process final response length=${response.content.length}" }
             }
             is AgentResponse.Error -> {
-                log("Agent error: ${response.message}")
+                logger.info { "[PIPELINE-298] Process agent error: ${response.message}" }
             }
-            else -> {
-                log("Agent ended with unexpected response type: ${response::class.simpleName}")
-            }
+        else -> {
+            logger.info { "[PIPELINE-299] Process ended with response type: ${response::class.simpleName}" }
         }
-
-        emit(Unit)
     }
 
-    private fun log(message: String) {
-        println("[Process] $message")
+        return flow {
+            emit(Unit)
+        }
     }
 }

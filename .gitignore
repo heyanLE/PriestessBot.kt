@@ -19,6 +19,10 @@ out/
 ### Kotlin ###
 .kotlin
 
+### Local manual integration launchers ###
+src/test/*.local.bat
+manual-test-logs/
+
 ### Eclipse ###
 .apt_generated
 .classpath

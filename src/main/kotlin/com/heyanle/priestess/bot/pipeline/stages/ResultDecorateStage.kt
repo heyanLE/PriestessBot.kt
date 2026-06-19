@@ -4,6 +4,7 @@ import com.heyanle.priestess.bot.agent.AgentResponse
 import com.heyanle.priestess.bot.pipeline.PipelineContext
 import com.heyanle.priestess.bot.pipeline.Stage
 import com.heyanle.priestess.bot.pipeline.StageOrder
+import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -16,6 +17,7 @@ import kotlinx.coroutines.flow.Flow
  * v1 实现：透传 Agent 响应文本，错误时转换为用户友好的提示。
  */
 class ResultDecorateStage : Stage {
+    private val logger = KotlinLogging.logger {}
 
     override val name = "ResultDecorate"
     override val order = StageOrder.RESULT_DECORATE
@@ -74,6 +76,6 @@ class ResultDecorateStage : Stage {
     }
 
     private fun log(message: String) {
-        println("[ResultDecorate] $message")
+        logger.info { message }
     }
 }

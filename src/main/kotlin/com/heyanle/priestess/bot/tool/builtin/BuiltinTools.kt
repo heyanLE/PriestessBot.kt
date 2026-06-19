@@ -1,11 +1,11 @@
 package com.heyanle.priestess.bot.tool.builtin
 
-import com.heyanle.priestess.bot.tool.ToolRegistry
+import com.heyanle.priestess.bot.tool.ToolController
 
 /**
- * Registers all built-in tools into the [ToolRegistry].
+ * Registers all built-in tools into the [ToolController].
  */
-fun registerBuiltinTools(registry: ToolRegistry) {
+fun registerBuiltinTools(registry: ToolController) {
     registry.registerAll(
         listOf(
             WebSearchTool(),

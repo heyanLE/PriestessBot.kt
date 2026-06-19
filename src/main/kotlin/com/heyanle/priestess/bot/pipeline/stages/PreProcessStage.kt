@@ -1,91 +1,66 @@
 package com.heyanle.priestess.bot.pipeline.stages
 
+import com.heyanle.priestess.bot.agent.AgentCase
 import com.heyanle.priestess.bot.agent.AgentContext
-import com.heyanle.priestess.bot.agent.AgentHooks
-import com.heyanle.priestess.bot.agent.CompressStrategy
-import com.heyanle.priestess.bot.agent.context.ContextManager
-import com.heyanle.priestess.bot.conversation.ConversationManager
-import com.heyanle.priestess.bot.conversation.MessageHistory
+import com.heyanle.priestess.bot.config.AgentConfig
+import com.heyanle.priestess.bot.config.PipelineConfig
+import com.heyanle.priestess.bot.conversation.ConversationCase
 import com.heyanle.priestess.bot.conversation.MessageRole
-import com.heyanle.priestess.bot.core.config.AgentConfig
-import com.heyanle.priestess.bot.pipeline.PipelineConfig
 import com.heyanle.priestess.bot.pipeline.PipelineContext
 import com.heyanle.priestess.bot.pipeline.Stage
 import com.heyanle.priestess.bot.pipeline.StageOrder
 import com.heyanle.priestess.bot.provider.model.ConversationMessage
+import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 
 /**
- * 预处理阶段（洋葱模型外层）。
+ * Prepares the agent context before downstream stages and persists history after them.
  *
- * **前置逻辑**：创建 [AgentContext]，注入 System Prompt，加载会话历史，附加 Skill instructions
- * **后置逻辑**：持久化对话到 ConversationManager + MessageHistory
- *
- * 洋葱模型：前置注入 → 让后续阶段（Process / ResultDecorate / Respond）执行 → 后置持久化
+ * This stage participates in the onion model: setup happens immediately in
+ * [process], while persistence is deferred to the returned [Flow] and runs after
+ * Process, decoration, and response stages complete.
  */
 class PreProcessStage(
     private val agentConfig: AgentConfig,
     private val pipelineConfig: PipelineConfig,
-    private val conversationManager: ConversationManager,
-    private val messageHistory: MessageHistory,
-    private val contextManager: ContextManager,
+    private val conversationCase: ConversationCase,
+    private val agentCase: AgentCase,
+    private val contextManager: com.heyanle.priestess.bot.agent.context.ContextManager,
 ) : Stage {
+    private val logger = KotlinLogging.logger {}
 
     override val name = "PreProcess"
     override val order = StageOrder.PRE_PROCESS
 
-    override suspend fun process(ctx: PipelineContext): Flow<Unit> = flow {
-        // === 前置逻辑：注入 System Prompt、加载历史 ===
-
+    override suspend fun process(ctx: PipelineContext): Flow<Unit> {
         val session = ctx.event.session
         val platform = ctx.event.platform
 
-        // 获取或创建会话
-        val conversation = conversationManager.getOrCreate(
+        val conversation = conversationCase.getOrCreate(
             platform = platform.metadata.name,
             sessionId = session.id,
         )
-
-        // 解析压缩策略
-        val compressStrategy = when (agentConfig.compressStrategy.lowercase()) {
-            "token_window" -> CompressStrategy.TOKEN_WINDOW
-            "llm_compress" -> CompressStrategy.LLM_COMPRESS
-            else -> CompressStrategy.ROUND_TRUNCATION
+        logger.info {
+            "[PIPELINE-110] PreProcess conversation ready id=${conversation.id}, " +
+                "platform=${platform.metadata.name}, session=${session.id}"
         }
 
-        // 创建 Agent 配置
-        val agent = com.heyanle.priestess.bot.agent.Agent(
-            name = agentConfig.name,
-            instructions = agentConfig.instructions,
-            model = agentConfig.model,
-            maxSteps = agentConfig.maxSteps,
-            toolTimeoutMs = agentConfig.toolTimeoutSeconds * 1000,
-            compressStrategy = compressStrategy,
-            maxContextTokens = agentConfig.maxTokens,
-            maxContextRounds = agentConfig.maxRounds,
-        )
-
-        // 加载会话历史
+        val agent = agentCase.createAgent(agentConfig)
         val messages = mutableListOf<ConversationMessage>()
         var historyCount = 0
+
         if (pipelineConfig.maxHistoryMessages > 0) {
-            val storedMessages = messageHistory.getRecentMessages(
+            val storedMessages = conversationCase.getRecentMessages(
                 conversationId = conversation.id,
                 count = pipelineConfig.maxHistoryMessages,
             )
             historyCount = storedMessages.size
             for (msg in storedMessages) {
                 when (msg.role) {
-                    MessageRole.USER -> {
-                        messages.add(ConversationMessage.user(msg.content ?: ""))
-                    }
-                    MessageRole.ASSISTANT -> {
-                        messages.add(ConversationMessage.assistant(msg.content ?: ""))
-                    }
-                    MessageRole.SYSTEM -> {
-                        // 系统消息不重复加载
-                    }
+                    MessageRole.USER -> messages.add(ConversationMessage.user(msg.content ?: ""))
+                    MessageRole.ASSISTANT -> messages.add(ConversationMessage.assistant(msg.content ?: ""))
+                    MessageRole.SYSTEM -> Unit
                     MessageRole.TOOL -> {
                         if (msg.toolCallId != null) {
                             messages.add(
@@ -93,7 +68,7 @@ class PreProcessStage(
                                     toolCallId = msg.toolCallId,
                                     name = msg.content ?: "unknown",
                                     content = msg.content ?: "",
-                                )
+                                ),
                             )
                         }
                     }
@@ -101,54 +76,47 @@ class PreProcessStage(
             }
         }
 
-        // 创建 AgentContext（System Prompt 将由 ReActRunner 在 stepUntilDone 中注入）
-        val agentContext = AgentContext(
+        ctx.agentContext = AgentContext(
             agent = agent,
             conversationId = conversation.id,
             platform = platform,
             session = session,
             messages = messages,
         )
-
-        ctx.agentContext = agentContext
         ctx.shared["conversation"] = conversation
         ctx.shared["agent"] = agent
 
-        log("PreProcess injected: agent=${agent.name}, history=$historyCount messages")
-
-        // === 让后续阶段执行 ===
-        // Flow 在此处挂起，等待后续阶段完成后再执行后置逻辑
-        emit(Unit)
-
-        // === 后置逻辑：持久化对话 ===
-        try {
-            // 持久化用户消息
-            messageHistory.store(
-                conversationId = conversation.id,
-                role = MessageRole.USER,
-                content = ctx.textContent,
-            )
-
-            // 持久化助手回复
-            val response = ctx.agentResponse
-            if (response is com.heyanle.priestess.bot.agent.AgentResponse.Final) {
-                messageHistory.store(
-                    conversationId = conversation.id,
-                    role = MessageRole.ASSISTANT,
-                    content = response.content,
-                )
-            }
-
-            // 更新会话活跃时间
-            conversationManager.updateActivity(conversation.id)
-
-            log("Persisted conversation: user_msg + assistant_response")
-        } catch (e: Exception) {
-            System.err.println("[PreProcess] Failed to persist conversation: ${e.message}")
+        logger.info {
+            "[PIPELINE-119] PreProcess injected agent=${agent.name}, model=${agent.model}, history=$historyCount"
         }
-    }
 
-    private fun log(message: String) {
-        println("[PreProcess] $message")
+        return flow {
+            emit(Unit)
+
+            try {
+                conversationCase.storeMessage(
+                    conversationId = conversation.id,
+                    role = MessageRole.USER,
+                    content = ctx.textContent,
+                )
+
+                val response = ctx.agentResponse
+                if (response is com.heyanle.priestess.bot.agent.AgentResponse.Final) {
+                    conversationCase.storeMessage(
+                        conversationId = conversation.id,
+                        role = MessageRole.ASSISTANT,
+                        content = response.content,
+                    )
+                }
+
+                conversationCase.updateActivity(conversation.id)
+                logger.info {
+                    "[PIPELINE-190] PreProcess persisted conversation id=${conversation.id}, " +
+                        "response=${ctx.agentResponse?.let { it::class.simpleName }}"
+                }
+            } catch (e: Exception) {
+                logger.error(e) { "[PIPELINE-990] Failed to persist conversation" }
+            }
+        }
     }
 }

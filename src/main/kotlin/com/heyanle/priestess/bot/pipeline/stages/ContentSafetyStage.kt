@@ -1,9 +1,10 @@
 package com.heyanle.priestess.bot.pipeline.stages
 
-import com.heyanle.priestess.bot.pipeline.PipelineConfig
+import com.heyanle.priestess.bot.config.PipelineConfig
 import com.heyanle.priestess.bot.pipeline.PipelineContext
 import com.heyanle.priestess.bot.pipeline.Stage
 import com.heyanle.priestess.bot.pipeline.StageOrder
+import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -14,6 +15,7 @@ import kotlinx.coroutines.flow.Flow
 class ContentSafetyStage(
     private val config: PipelineConfig,
 ) : Stage {
+    private val logger = KotlinLogging.logger {}
 
     override val name = "ContentSafety"
     override val order = StageOrder.CONTENT_SAFETY
@@ -37,6 +39,6 @@ class ContentSafetyStage(
     }
 
     private fun log(message: String) {
-        println("[ContentSafety] $message")
+        logger.info { message }
     }
 }

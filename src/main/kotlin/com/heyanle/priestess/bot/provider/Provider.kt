@@ -1,6 +1,6 @@
 package com.heyanle.priestess.bot.provider
 
-import com.heyanle.priestess.bot.core.config.ProviderConfig
+import com.heyanle.priestess.bot.config.ProviderConfig
 import com.heyanle.priestess.bot.provider.model.LLMRequest
 import com.heyanle.priestess.bot.provider.model.LLMResponse
 

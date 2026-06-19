@@ -1,6 +1,5 @@
 package com.heyanle.priestess.bot.platform.adapters.telegram
 
-import com.heyanle.priestess.bot.core.event.EventBus
 import com.heyanle.priestess.bot.platform.*
 import io.ktor.client.*
 import io.ktor.client.call.*
@@ -18,9 +17,8 @@ class TelegramConfig(
 ) : AdapterConfig()
 
 class TelegramPlatform(
-    eventBus: EventBus,
     private val config: TelegramConfig = TelegramConfig(),
-) : Platform(eventBus) {
+) : Platform() {
 
     override val metadata = PlatformMetadata(
         name = config.name,
@@ -99,7 +97,7 @@ class TelegramPlatform(
             session = MessageSession(
                 id = chatId,
                 type = chatType,
-                platformName = "telegram",
+                platformName = metadata.name,
                 metadata = chat.mapValues { it.value.jsonPrimitive.content },
             ),
             chain = MessageChain.text(text),
