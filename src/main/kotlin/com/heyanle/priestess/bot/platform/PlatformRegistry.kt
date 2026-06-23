@@ -18,6 +18,12 @@ object PlatformRegistry {
         }
     }
 
+    fun unregister(name: String) {
+        synchronized(lock) {
+            platforms.remove(name)
+        }
+    }
+
     fun getMetaList(): List<PlatformMetadata> {
         return synchronized(lock) {
             platforms.values.map { it.metadata }

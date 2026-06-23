@@ -13,11 +13,21 @@ import com.heyanle.priestess.bot.core.controller.BaseController
 import com.heyanle.priestess.bot.agent.AgentCase
 import com.heyanle.priestess.bot.agent.context.ContextManager
 import com.heyanle.priestess.bot.agent.context.TokenCounter
+import com.heyanle.priestess.bot.agent.orchestration.SubAgentOrchestrator
+import com.heyanle.priestess.bot.config.AgentConfig
+import com.heyanle.priestess.bot.config.ProviderConfig
+import com.heyanle.priestess.bot.config.SubAgentConfig
+import com.heyanle.priestess.bot.config.SubAgentOrchestrationConfig
+import com.heyanle.priestess.bot.config.SubAgentRouteConfig
 import com.heyanle.priestess.bot.pipeline.PipelineCase
 import com.heyanle.priestess.bot.pipeline.PipelineContext
 import com.heyanle.priestess.bot.pipeline.PipelineController
 import com.heyanle.priestess.bot.pipeline.Stage
 import com.heyanle.priestess.bot.pipeline.StageOrder
+import com.heyanle.priestess.bot.pipeline.stages.PreProcessStage
+import com.heyanle.priestess.bot.pipeline.stages.ProcessStage
+import com.heyanle.priestess.bot.pipeline.stages.RespondStage
+import com.heyanle.priestess.bot.pipeline.stages.ResultDecorateStage
 import com.heyanle.priestess.bot.pipeline.stages.WakingCheckStage
 import com.heyanle.priestess.bot.pipeline.stages.WhitelistCheckStage
 import com.heyanle.priestess.bot.platform.MessageChain
@@ -377,6 +387,135 @@ class ArchitectureRefactorTest {
     }
 
     @Test
+    fun `message flow routes matching prompt to configured sub-agent`() = runBlocking {
+        val configCase = ConfigCase(ConfigController(path = tempConfigPath()))
+        configCase.update {
+            it.copy(
+                agent = AgentConfig(name = "primary-agent", providerName = "primary-provider", model = "primary-provider", maxSteps = 3),
+                providers = listOf(
+                    ProviderConfig(name = "primary-provider", type = "fake", model = "primary-provider"),
+                    ProviderConfig(name = "code-provider", type = "fake", model = "code-provider"),
+                ),
+                subAgents = SubAgentOrchestrationConfig(
+                    enabled = true,
+                    agents = listOf(
+                        SubAgentConfig(
+                            name = "code-agent",
+                            agent = AgentConfig(name = "code-agent", providerName = "code-provider", model = "code-provider", maxSteps = 3),
+                        ),
+                    ),
+                    routes = listOf(
+                        SubAgentRouteConfig(
+                            name = "code-route",
+                            targetAgentName = "code-agent",
+                            keywords = listOf("code"),
+                            priority = 10,
+                        ),
+                    ),
+                ),
+                pipeline = PipelineConfig(wakingPrefix = "", rateLimitEnabled = false, maxHistoryMessages = 10),
+            )
+        }
+
+        val primaryProvider = StaticProvider("primary-provider", "primary reply")
+        val codeProvider = StaticProvider("code-provider", "code reply")
+        val result = runPipelineMessage(configCase, listOf(primaryProvider, codeProvider), "please review code")
+
+        assertEquals("code reply", result.response)
+        assertEquals(0, primaryProvider.callCount)
+        assertEquals(1, codeProvider.callCount)
+        assertEquals("code-agent", result.selectionAgent)
+        assertEquals("code-route", result.selectionRoute)
+        assertEquals("keyword_match", result.selectionReason)
+    }
+
+    @Test
+    fun `message flow keeps primary agent when sub-agent routing is disabled`() = runBlocking {
+        val configCase = ConfigCase(ConfigController(path = tempConfigPath()))
+        configCase.update {
+            it.copy(
+                agent = AgentConfig(name = "primary-agent", providerName = "primary-provider", model = "primary-provider", maxSteps = 3),
+                providers = listOf(
+                    ProviderConfig(name = "primary-provider", type = "fake", model = "primary-provider"),
+                    ProviderConfig(name = "code-provider", type = "fake", model = "code-provider"),
+                ),
+                subAgents = SubAgentOrchestrationConfig(
+                    enabled = false,
+                    agents = listOf(
+                        SubAgentConfig(
+                            name = "code-agent",
+                            agent = AgentConfig(name = "code-agent", providerName = "code-provider", model = "code-provider", maxSteps = 3),
+                        ),
+                    ),
+                    routes = listOf(
+                        SubAgentRouteConfig(name = "code-route", targetAgentName = "code-agent", keywords = listOf("code"), priority = 10),
+                    ),
+                ),
+                pipeline = PipelineConfig(wakingPrefix = "", rateLimitEnabled = false, maxHistoryMessages = 10),
+            )
+        }
+
+        val primaryProvider = StaticProvider("primary-provider", "primary reply")
+        val codeProvider = StaticProvider("code-provider", "code reply")
+        val result = runPipelineMessage(configCase, listOf(primaryProvider, codeProvider), "please review code")
+
+        assertEquals("primary reply", result.response)
+        assertEquals(1, primaryProvider.callCount)
+        assertEquals(0, codeProvider.callCount)
+        assertEquals("primary-agent", result.selectionAgent)
+        assertEquals(null, result.selectionRoute)
+        assertEquals("orchestration_disabled", result.selectionReason)
+    }
+
+    @Test
+    fun `pipeline uses updated sub-agent config for later messages without controller rebuild`() = runBlocking {
+        val configCase = ConfigCase(ConfigController(path = tempConfigPath()))
+        configCase.update {
+            it.copy(
+                agent = AgentConfig(name = "primary-agent", providerName = "primary-provider", model = "primary-provider", maxSteps = 3),
+                providers = listOf(
+                    ProviderConfig(name = "primary-provider", type = "fake", model = "primary-provider"),
+                    ProviderConfig(name = "code-provider", type = "fake", model = "code-provider"),
+                ),
+                subAgents = SubAgentOrchestrationConfig(enabled = false),
+                pipeline = PipelineConfig(wakingPrefix = "", rateLimitEnabled = false, maxHistoryMessages = 10),
+            )
+        }
+
+        val primaryProvider = StaticProvider("primary-provider", "primary reply")
+        val codeProvider = StaticProvider("code-provider", "code reply")
+        val runtime = RuntimePipelineFixture(configCase, listOf(primaryProvider, codeProvider))
+
+        try {
+            val first = runtime.process("please review code", "session-hot-1")
+            configCase.update {
+                it.copy(
+                    subAgents = SubAgentOrchestrationConfig(
+                        enabled = true,
+                        agents = listOf(
+                            SubAgentConfig(
+                                name = "code-agent",
+                                agent = AgentConfig(name = "code-agent", providerName = "code-provider", model = "code-provider", maxSteps = 3),
+                            ),
+                        ),
+                        routes = listOf(
+                            SubAgentRouteConfig(name = "code-route", targetAgentName = "code-agent", keywords = listOf("code"), priority = 10),
+                        ),
+                    ),
+                )
+            }
+            val second = runtime.process("please review code", "session-hot-2")
+
+            assertEquals("primary reply", first.response)
+            assertEquals("code reply", second.response)
+            assertEquals(1, primaryProvider.callCount)
+            assertEquals(1, codeProvider.callCount)
+        } finally {
+            runtime.stop()
+        }
+    }
+
+    @Test
     fun `BaseController task exceptions do not cancel sibling tasks`() = runBlocking {
         val controller = TestController()
         val siblingCompleted = CompletableDeferred<Unit>()
@@ -397,6 +536,151 @@ class ArchitectureRefactorTest {
     private fun tempDbPath(): String {
         return Files.createTempFile("priestess-db", ".sqlite").toAbsolutePath().toString()
     }
+
+    private suspend fun runPipelineMessage(
+        configCase: ConfigCase,
+        providers: List<StaticProvider>,
+        message: String,
+    ): PipelineRunResult {
+        val database = DatabaseController(tempDbPath())
+        val conversationController = ConversationController(database)
+        val conversationCase = ConversationCase(conversationController, MessageHistory(database))
+        val toolController = ToolController()
+        val providerController = ProviderController(configCase)
+        providers.forEach(providerController::register)
+        val providerCase = ProviderCase(providerController)
+        val agentCase = AgentCase()
+        val contextManager = ContextManager(TokenCounter())
+        val toolExecutor = ToolExecutor(toolController)
+        val subAgentOrchestrator = SubAgentOrchestrator(
+            agentCase = agentCase,
+            contextManager = contextManager,
+            providerCase = providerCase,
+            toolExecutor = toolExecutor,
+            toolController = toolController,
+        )
+        val captureStage = SelectionCaptureStage()
+        val pipelineController = PipelineController(
+            listOf(
+                PreProcessStage(
+                    agentConfig = configCase.current().agent,
+                    subAgentConfig = configCase.current().subAgents,
+                    pipelineConfig = configCase.current().pipeline,
+                    conversationCase = conversationCase,
+                    agentCase = agentCase,
+                    contextManager = contextManager,
+                    subAgentOrchestrator = subAgentOrchestrator,
+                ),
+                ProcessStage(
+                    providerCase = providerCase,
+                    toolExecutor = toolExecutor,
+                    toolController = toolController,
+                    contextManager = contextManager,
+                ),
+                ResultDecorateStage(),
+                captureStage,
+                RespondStage(),
+            ),
+            Unit,
+        )
+        val platform = RecordingPlatform("sub-agent-flow")
+        platform.setMessageHandler { pipelineController.process(it).join() }
+        val event = MessageEvent(
+            platform = platform,
+            session = MessageSession(
+                id = "session-sub-agent-flow",
+                type = SessionType.PRIVATE,
+                platformName = platform.metadata.name,
+            ),
+            chain = MessageChain.text(message),
+        )
+
+        try {
+            platform.publish(event)
+            val response = withTimeout(1_000) { platform.sent.await().textContent }
+            val ctx = withTimeout(1_000) { captureStage.captured.await() }
+            return PipelineRunResult(
+                response = response,
+                selectionAgent = ctx.shared["subAgentSelectionAgent"] as? String,
+                selectionRoute = ctx.shared["subAgentSelectionRoute"] as? String,
+                selectionReason = ctx.shared["subAgentSelectionReason"] as? String,
+            )
+        } finally {
+            pipelineController.stop()
+            providerController.stop()
+            toolController.stop()
+            database.stop()
+        }
+    }
+
+    private data class RuntimePipelineResult(
+        val response: String,
+    )
+
+    private inner class RuntimePipelineFixture(
+        configCase: ConfigCase,
+        providers: List<StaticProvider>,
+    ) {
+        private val database = DatabaseController(tempDbPath())
+        private val conversationCase = ConversationCase(ConversationController(database), MessageHistory(database))
+        private val toolController = ToolController()
+        private val providerController = ProviderController(configCase)
+        private val providerCase = ProviderCase(providerController)
+        private val agentCase = AgentCase()
+        private val contextManager = ContextManager(TokenCounter())
+        private val toolExecutor = ToolExecutor(toolController)
+        private val subAgentOrchestrator = SubAgentOrchestrator(
+            agentCase = agentCase,
+            contextManager = contextManager,
+            providerCase = providerCase,
+            toolExecutor = toolExecutor,
+            toolController = toolController,
+        )
+        private val pipelineController = PipelineController(
+            configCase = configCase,
+            conversationCase = conversationCase,
+            agentCase = agentCase,
+            contextManager = contextManager,
+            providerCase = providerCase,
+            toolExecutor = toolExecutor,
+            toolController = toolController,
+            subAgentOrchestrator = subAgentOrchestrator,
+        )
+
+        init {
+            providers.forEach(providerController::register)
+        }
+
+        suspend fun process(message: String, sessionId: String): RuntimePipelineResult {
+            val platform = RecordingPlatform("sub-agent-flow")
+            platform.setMessageHandler { pipelineController.process(it).join() }
+            val event = MessageEvent(
+                platform = platform,
+                session = MessageSession(
+                    id = sessionId,
+                    type = SessionType.PRIVATE,
+                    platformName = platform.metadata.name,
+                ),
+                chain = MessageChain.text(message),
+            )
+            platform.publish(event)
+            return RuntimePipelineResult(withTimeout(1_000) { platform.sent.await().textContent })
+        }
+
+        suspend fun stop() {
+            pipelineController.stop()
+            providerController.stop()
+            toolController.stop()
+            database.stop()
+        }
+    }
+
+    private data class PipelineRunResult(
+        val response: String,
+        val selectionAgent: String?,
+        val selectionRoute: String?,
+        val selectionReason: String?,
+    )
 
     private class PublishingPlatform(name: String) : Platform() {
         override val metadata = PlatformMetadata(
@@ -425,6 +709,17 @@ class ArchitectureRefactorTest {
 
         override suspend fun process(ctx: PipelineContext): Flow<Unit>? {
             received.complete(ctx.event)
+            return null
+        }
+    }
+
+    private class SelectionCaptureStage : Stage {
+        val captured = CompletableDeferred<PipelineContext>()
+        override val name = "SelectionCapture"
+        override val order = StageOrder.RESULT_DECORATE
+
+        override suspend fun process(ctx: PipelineContext): Flow<Unit>? {
+            captured.complete(ctx)
             return null
         }
     }
@@ -487,6 +782,31 @@ class ArchitectureRefactorTest {
         }
 
         override suspend fun getModels(): List<String> = listOf("fake-model")
+        override suspend fun test(): Boolean = true
+    }
+
+    private class StaticProvider(
+        name: String,
+        private val content: String,
+    ) : ChatProvider {
+        override val metadata = ProviderMetadata(
+            name = name,
+            displayName = name,
+            kind = LLMKind.OPENAI,
+            supportToolCalling = false,
+            supportVision = false,
+            supportStreaming = false,
+        )
+        override val config = ProviderConfig(name = name, type = "fake", model = name)
+        var callCount = 0
+            private set
+
+        override suspend fun textChat(request: LLMRequest): LLMResponse {
+            callCount += 1
+            return LLMResponse(content = content)
+        }
+
+        override suspend fun getModels(): List<String> = listOf(metadata.name)
         override suspend fun test(): Boolean = true
     }
 

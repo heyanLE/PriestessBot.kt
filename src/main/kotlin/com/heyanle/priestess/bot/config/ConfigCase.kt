@@ -9,6 +9,8 @@ class ConfigCase(
     val providerConfigsFlow = controller.providerConfigsFlow
     val agentConfigFlow = controller.agentConfigFlow
     val pipelineConfigFlow = controller.pipelineConfigFlow
+    val serverConfigFlow = controller.serverConfigFlow
+    val pluginConfigFlow = controller.pluginConfigFlow
 
     fun current(): PriestessConfig = controller.current()
 
@@ -18,5 +20,9 @@ class ConfigCase(
 
     fun save(config: PriestessConfig = current()) {
         controller.save(config)
+    }
+
+    fun reload(): PriestessConfig {
+        return controller.reload()
     }
 }

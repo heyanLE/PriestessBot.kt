@@ -19,8 +19,13 @@ out/
 ### Kotlin ###
 .kotlin
 
+### Dashboard frontend ###
+dashboard/node_modules/
+dashboard/dist/
+
 ### Local manual integration launchers ###
 src/test/*.local.bat
+deploy-nas.local.bat
 manual-test-logs/
 
 ### Eclipse ###

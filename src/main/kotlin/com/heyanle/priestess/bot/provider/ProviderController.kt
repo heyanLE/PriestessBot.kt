@@ -1,7 +1,9 @@
 package com.heyanle.priestess.bot.provider
 
 import com.heyanle.priestess.bot.config.ConfigCase
+import com.heyanle.priestess.bot.config.ProviderConfig
 import com.heyanle.priestess.bot.core.controller.BaseController
+import kotlinx.coroutines.flow.collectLatest
 
 /**
  * Owns runtime LLM provider instances created from provider configuration.
@@ -14,34 +16,56 @@ class ProviderController(
     configCase: ConfigCase,
 ) : BaseController("ProviderController") {
 
-    private val providers = mutableMapOf<String, ChatProvider>()
+    private val configProviders = mutableMapOf<String, ChatProvider>()
+    private val runtimeProviders = mutableMapOf<String, ChatProvider>()
 
     init {
         registerBuiltinProviders()
-        for (pc in configCase.current().providers) {
-            val provider = ProviderRegistry.createFromConfig(pc) ?: continue
-            register(provider)
+        refreshConfigProviders(configCase.current().providers)
+        launchTask("provider-config-refresh") {
+            configCase.providerConfigsFlow.collectLatest { configs ->
+                refreshConfigProviders(configs)
+            }
         }
     }
 
+    @Synchronized
     fun register(provider: ChatProvider) {
-        providers[provider.metadata.name] = provider
+        runtimeProviders[provider.metadata.name] = provider
     }
 
-    fun getByName(name: String): ChatProvider? = providers[name]
+    @Synchronized
+    fun unregister(name: String) {
+        runtimeProviders.remove(name)
+    }
 
-    fun getAll(): List<ChatProvider> = providers.values.toList()
+    @Synchronized
+    fun getByName(name: String): ChatProvider? = runtimeProviders[name] ?: configProviders[name]
 
-    fun getMetaList(): List<ProviderMetadata> = providers.values.map { it.metadata }
+    @Synchronized
+    fun getAll(): List<ChatProvider> {
+        return (configProviders + runtimeProviders).values.toList()
+    }
+
+    fun getMetaList(): List<ProviderMetadata> = getAll().map { it.metadata }
 
     suspend fun testAll(): Map<String, Boolean> {
-        return providers.mapValues { (_, provider) ->
-            try {
+        return getAll().associate { provider ->
+            provider.metadata.name to try {
                 provider.test()
             } catch (e: Exception) {
                 logger.warn(e) { "Provider '${provider.metadata.name}' test failed" }
                 false
             }
+        }
+    }
+
+    @Synchronized
+    private fun refreshConfigProviders(configs: List<ProviderConfig>) {
+        configProviders.clear()
+        for (config in configs) {
+            val provider = ProviderRegistry.createFromConfig(config) ?: continue
+            configProviders[provider.metadata.name] = provider
         }
     }
 }

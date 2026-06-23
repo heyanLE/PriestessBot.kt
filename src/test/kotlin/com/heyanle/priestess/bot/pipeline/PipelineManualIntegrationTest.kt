@@ -83,7 +83,7 @@ class PipelineManualIntegrationTest {
                         rateLimitEnabled = false,
                         whitelistEnabled = true,
                         whitelistUsers = listOf("1371735400"),
-                        whitelistGroups = listOf("757063076"),
+                        whitelistGroups = listOf("757063076", "729848189"),
                         maxHistoryMessages = 10,
                     ),
                 ),

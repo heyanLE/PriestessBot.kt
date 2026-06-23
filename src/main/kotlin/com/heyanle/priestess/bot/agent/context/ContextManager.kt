@@ -9,7 +9,7 @@ class ContextManager(
     private val strategies: Map<CompressStrategy, ContextCompressStrategy> = mapOf(
         CompressStrategy.ROUND_TRUNCATION to RoundTruncationStrategy(),
         CompressStrategy.TOKEN_WINDOW to TokenWindowStrategy(tokenCounter),
-        CompressStrategy.LLM_COMPRESS to LLMCompressStrategy(),
+        CompressStrategy.LLM_COMPRESS to LLMCompressStrategy(tokenCounter),
     ),
 ) {
     suspend fun compress(

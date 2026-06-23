@@ -1,0 +1,6 @@
+- [x] 1. Add OpenSpec coverage for optional Dashboard API token auth.
+- [x] 2. Add server config/env override support for API token.
+- [x] 3. Protect Dashboard API and log WebSocket routes when token is configured.
+- [x] 4. Update Dashboard frontend request helpers to attach the token.
+- [x] 5. Add focused config, route, and frontend build tests.
+- [x] 6. Run strict OpenSpec validation and full test suite.

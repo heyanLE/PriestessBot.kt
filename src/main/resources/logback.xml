@@ -4,8 +4,10 @@
             <pattern>%d{HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n</pattern>
         </encoder>
     </appender>
+    <appender name="DASHBOARD" class="com.heyanle.priestess.bot.server.DashboardLogbackAppender"/>
 
     <root level="INFO">
         <appender-ref ref="STDOUT"/>
+        <appender-ref ref="DASHBOARD"/>
     </root>
 </configuration>

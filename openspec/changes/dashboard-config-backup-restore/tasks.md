@@ -1,0 +1,4 @@
+- [x] 1. Add OpenSpec coverage for Dashboard config backup restore.
+- [x] 2. Add Dashboard API client/store support for config backups.
+- [x] 3. Add Runtime Config view backup list and restore controls.
+- [x] 4. Run Dashboard build and relevant backend/frontend validation.

@@ -1,0 +1,5 @@
+- [x] 1. Add OpenSpec coverage for Dashboard runtime log streaming.
+- [x] 2. Implement Dashboard log hub and Logback appender.
+- [x] 3. Update logback configs and `/ws/logs` route to stream buffered and live events.
+- [x] 4. Add focused tests for buffered and live log WebSocket delivery.
+- [x] 5. Run strict OpenSpec validation, Dashboard build, and full test suite.

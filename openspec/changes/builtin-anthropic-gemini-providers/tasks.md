@@ -1,0 +1,5 @@
+- [x] 1. Add OpenSpec coverage for built-in Anthropic and Gemini providers.
+- [x] 2. Implement Anthropic provider text chat and model listing.
+- [x] 3. Implement Gemini provider text chat and model listing.
+- [x] 4. Register both providers and add focused unit tests.
+- [x] 5. Run targeted provider tests, strict OpenSpec validation, and full test suite.

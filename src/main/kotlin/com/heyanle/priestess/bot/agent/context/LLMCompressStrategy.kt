@@ -2,8 +2,11 @@ package com.heyanle.priestess.bot.agent.context
 
 import com.heyanle.priestess.bot.provider.model.ConversationMessage
 
-class LLMCompressStrategy : ContextCompressStrategy {
+class LLMCompressStrategy(
+    tokenCounter: TokenCounter,
+) : ContextCompressStrategy {
     override val name: String = "llm_compress"
+    private val fallback = TokenWindowStrategy(tokenCounter)
 
     override suspend fun compress(
         messages: List<ConversationMessage>,
@@ -11,6 +14,6 @@ class LLMCompressStrategy : ContextCompressStrategy {
         maxTokens: Int,
         maxRounds: Int,
     ): List<ConversationMessage> {
-        throw NotImplementedError("LLMCompressStrategy is reserved for v2")
+        return fallback.compress(messages, systemMessage, maxTokens, maxRounds)
     }
 }

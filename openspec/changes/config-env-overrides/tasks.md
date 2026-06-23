@@ -1,0 +1,4 @@
+- [x] 1. Add OpenSpec coverage for operational environment overrides.
+- [x] 2. Add injectable environment overlay support to `ConfigController`.
+- [x] 3. Cover initial load, reload, invalid values, and non-persistence behavior in config tests.
+- [x] 4. Run targeted config tests and strict OpenSpec validation.

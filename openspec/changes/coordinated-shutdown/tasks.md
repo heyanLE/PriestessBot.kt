@@ -1,0 +1,5 @@
+- [x] 1. Add OpenSpec coverage for coordinated shutdown.
+- [x] 2. Add pipeline drain tracking and shutdown rejection behavior.
+- [x] 3. Add runtime lifecycle coordinator and wire `main()` through it.
+- [x] 4. Add tests for pipeline drain/rejection and shutdown ordering.
+- [x] 5. Run targeted tests, strict OpenSpec validation, and full test suite.

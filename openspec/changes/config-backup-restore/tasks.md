@@ -1,0 +1,5 @@
+- [x] 1. Add OpenSpec coverage for config backup and restore.
+- [x] 2. Implement timestamped config backup creation, listing, and restore in `ConfigController`.
+- [x] 3. Expose config backup list/restore Dashboard API routes and DTOs.
+- [x] 4. Add focused config and Dashboard route tests.
+- [x] 5. Run targeted tests, strict OpenSpec validation, and full test suite.

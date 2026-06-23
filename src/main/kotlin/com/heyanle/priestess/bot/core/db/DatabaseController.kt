@@ -31,6 +31,26 @@ object MessagesTable : Table("messages") {
     override val primaryKey = PrimaryKey(id)
 }
 
+object KnowledgeBasesTable : Table("knowledge_bases") {
+    val id = varchar("id", 64)
+    val name = varchar("name", 128)
+    val description = text("description")
+    val createdAt = long("created_at")
+    val updatedAt = long("updated_at")
+
+    override val primaryKey = PrimaryKey(id)
+}
+
+object KnowledgeChunksTable : Table("knowledge_chunks") {
+    val id = varchar("id", 64)
+    val knowledgeBaseId = varchar("knowledge_base_id", 64) references KnowledgeBasesTable.id
+    val documentName = varchar("document_name", 256)
+    val content = text("content")
+    val createdAt = long("created_at")
+
+    override val primaryKey = PrimaryKey(id)
+}
+
 /**
  * Owns the Exposed database connection and schema initialization.
  *
@@ -64,12 +84,9 @@ class DatabaseController(private val dbPath: String) : BaseController("DatabaseC
                 SchemaUtils.createMissingTablesAndColumns(
                     ConversationsTable,
                     MessagesTable,
+                    KnowledgeBasesTable,
+                    KnowledgeChunksTable,
                 )
-                try {
-                    exec("PRAGMA journal_mode=WAL;")
-                } catch (e: Exception) {
-                    logger.warn(e) { "Failed to enable SQLite WAL mode; continuing with default journal mode" }
-                }
             }
         }
     }

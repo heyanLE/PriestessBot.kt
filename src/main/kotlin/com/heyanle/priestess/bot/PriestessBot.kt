@@ -1,7 +1,6 @@
 package com.heyanle.priestess.bot
 
 import com.heyanle.priestess.bot.core.di.coreModule
-import com.heyanle.priestess.bot.platform.PlatformController
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.runBlocking
@@ -15,14 +14,15 @@ suspend fun main() {
         modules(coreModule)
     }
 
-    val platformController = app.koin.get<PlatformController>()
+    val runtime = app.koin.get<PriestessRuntime>()
+    runtime.start()
 
     logger.info { "PriestessBot is running. Press Ctrl+C to stop." }
 
     Runtime.getRuntime().addShutdownHook(Thread {
         try {
             runBlocking {
-                platformController.stop()
+                runtime.stop()
             }
         } catch (e: Exception) {
             logger.error(e) { "Error during shutdown" }

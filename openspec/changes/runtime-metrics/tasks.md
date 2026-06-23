@@ -1,0 +1,6 @@
+- [x] 1. Add OpenSpec coverage for runtime metrics.
+- [x] 2. Implement a thread-safe runtime metrics registry with Prometheus rendering.
+- [x] 3. Expose `GET /metrics` from the server.
+- [x] 4. Record pipeline, LLM, and tool metrics.
+- [x] 5. Add focused tests for rendering and route/recording behavior.
+- [x] 6. Run targeted tests, strict OpenSpec validation, and full test suite.

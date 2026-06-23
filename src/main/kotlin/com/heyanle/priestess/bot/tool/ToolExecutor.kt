@@ -1,5 +1,6 @@
 package com.heyanle.priestess.bot.tool
 
+import com.heyanle.priestess.bot.observability.MetricsRegistry
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 
@@ -9,6 +10,7 @@ import kotlinx.serialization.json.jsonObject
  */
 class ToolExecutor(
     private val registry: ToolController,
+    private val metricsRegistry: MetricsRegistry = MetricsRegistry(),
 ) {
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -26,18 +28,26 @@ class ToolExecutor(
         argumentsJson: String,
     ): ToolResult {
         val tool = registry.get(toolCallName)
-            ?: return ToolResult.error("Unknown tool: $toolCallName")
+            ?: return ToolResult.error("Unknown tool: $toolCallName").also {
+                recordToolCall(toolCallName, "error")
+            }
 
         val args = try {
             parseArguments(argumentsJson)
         } catch (e: Exception) {
-            return ToolResult.error("Failed to parse arguments for tool '$toolCallName': ${e.message}")
+            return ToolResult.error("Failed to parse arguments for tool '$toolCallName': ${e.message}").also {
+                recordToolCall(tool.schema.name, "error")
+            }
         }
 
         return try {
-            tool.execute(context, args)
+            tool.execute(context, args).also {
+                recordToolCall(tool.schema.name, if (it.success) "success" else "error")
+            }
         } catch (e: Exception) {
-            ToolResult.error("Tool '$toolCallName' execution failed: ${e.message}")
+            ToolResult.error("Tool '$toolCallName' execution failed: ${e.message}").also {
+                recordToolCall(tool.schema.name, "error")
+            }
         }
     }
 
@@ -57,6 +67,13 @@ class ToolExecutor(
             results[id] = execute(context, name, arguments)
         }
         return results
+    }
+
+    private fun recordToolCall(toolName: String, status: String) {
+        metricsRegistry.incrementCounter(
+            "priestess_tool_calls_total",
+            mapOf("tool" to toolName, "status" to status),
+        )
     }
 
     /**

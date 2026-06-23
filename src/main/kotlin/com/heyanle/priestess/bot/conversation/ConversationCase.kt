@@ -16,6 +16,14 @@ class ConversationCase(
         return history.getRecentMessages(conversationId, count)
     }
 
+    fun getAll(): List<Conversation> {
+        return controller.getAll()
+    }
+
+    fun getMessages(conversationId: String, count: Int = 100): List<StoredMessage> {
+        return history.getRecentMessages(conversationId, count)
+    }
+
     fun storeMessage(
         conversationId: String,
         role: MessageRole,

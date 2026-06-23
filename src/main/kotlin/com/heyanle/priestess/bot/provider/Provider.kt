@@ -47,7 +47,12 @@ object ProviderRegistry {
     private val registrations = mutableListOf<ProviderRegistration>()
 
     fun register(metadata: ProviderMetadata, factory: (ProviderConfig) -> ChatProvider) {
+        registrations.removeAll { it.metadata.name == metadata.name }
         registrations.add(ProviderRegistration(metadata, factory))
+    }
+
+    fun unregister(name: String) {
+        registrations.removeAll { it.metadata.name == name }
     }
 
     fun getMetaList(): List<ProviderMetadata> {

@@ -2,8 +2,10 @@ package com.heyanle.priestess.bot.pipeline.stages
 
 import com.heyanle.priestess.bot.agent.AgentCase
 import com.heyanle.priestess.bot.agent.AgentContext
+import com.heyanle.priestess.bot.agent.orchestration.SubAgentOrchestrator
 import com.heyanle.priestess.bot.config.AgentConfig
 import com.heyanle.priestess.bot.config.PipelineConfig
+import com.heyanle.priestess.bot.config.SubAgentOrchestrationConfig
 import com.heyanle.priestess.bot.conversation.ConversationCase
 import com.heyanle.priestess.bot.conversation.MessageRole
 import com.heyanle.priestess.bot.pipeline.PipelineContext
@@ -23,10 +25,12 @@ import kotlinx.coroutines.flow.flow
  */
 class PreProcessStage(
     private val agentConfig: AgentConfig,
+    private val subAgentConfig: SubAgentOrchestrationConfig = SubAgentOrchestrationConfig(),
     private val pipelineConfig: PipelineConfig,
     private val conversationCase: ConversationCase,
     private val agentCase: AgentCase,
     private val contextManager: com.heyanle.priestess.bot.agent.context.ContextManager,
+    private val subAgentOrchestrator: SubAgentOrchestrator? = null,
 ) : Stage {
     private val logger = KotlinLogging.logger {}
 
@@ -46,7 +50,13 @@ class PreProcessStage(
                 "platform=${platform.metadata.name}, session=${session.id}"
         }
 
-        val agent = agentCase.createAgent(agentConfig)
+        val selection = subAgentOrchestrator?.select(
+            message = ctx.textContent,
+            primaryAgent = agentConfig,
+            config = subAgentConfig,
+        )
+        val selectedAgentConfig = selection?.agentConfig ?: agentConfig
+        val agent = agentCase.createAgent(selectedAgentConfig)
         val messages = mutableListOf<ConversationMessage>()
         var historyCount = 0
 
@@ -85,9 +95,13 @@ class PreProcessStage(
         )
         ctx.shared["conversation"] = conversation
         ctx.shared["agent"] = agent
+        ctx.shared["subAgentSelectionAgent"] = selection?.agentName ?: agent.name
+        ctx.shared["subAgentSelectionReason"] = selection?.reason ?: "primary_agent"
+        selection?.routeName?.let { ctx.shared["subAgentSelectionRoute"] = it }
 
         logger.info {
-            "[PIPELINE-119] PreProcess injected agent=${agent.name}, model=${agent.model}, history=$historyCount"
+            "[PIPELINE-119] PreProcess injected agent=${agent.name}, model=${agent.model}, " +
+                "selection=${selection?.reason ?: "primary_agent"}, route=${selection?.routeName}, history=$historyCount"
         }
 
         return flow {
