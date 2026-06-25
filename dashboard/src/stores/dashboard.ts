@@ -97,6 +97,45 @@ export const useDashboardStore = defineStore('dashboard', () => {
     await refreshAll();
   }
 
+  async function updateToolAllowance(toolName: string, allowed: boolean) {
+    if (!config.value) throw new Error('Config is not loaded');
+    const nextConfig = JSON.parse(JSON.stringify(config.value)) as PriestessConfig;
+    const rootAllowance = applyToolAllowance(nextConfig.agent.enabledTools, nextConfig.agent.disabledTools, toolName, allowed);
+    nextConfig.agent.enabledTools = rootAllowance.enabledTools;
+    nextConfig.agent.disabledTools = rootAllowance.disabledTools;
+    nextConfig.workspaces = (nextConfig.workspaces ?? []).map((workspace) => ({
+      ...workspace,
+      tools: workspace.tools
+        ? {
+            ...workspace.tools,
+            ...applyToolAllowance(workspace.tools.enabledTools, workspace.tools.disabledTools, toolName, allowed),
+          }
+        : workspace.tools,
+    }));
+    await saveConfig(nextConfig);
+  }
+
+  function applyToolAllowance(
+    enabledTools: string[],
+    disabledTools: string[],
+    toolName: string,
+    allowed: boolean,
+  ) {
+    const enabled = new Set(enabledTools ?? []);
+    const disabled = new Set(disabledTools ?? []);
+    if (allowed) {
+      enabled.add(toolName);
+      disabled.delete(toolName);
+    } else {
+      enabled.delete(toolName);
+      disabled.add(toolName);
+    }
+    return {
+      enabledTools: [...enabled].sort(),
+      disabledTools: [...disabled].sort(),
+    };
+  }
+
   async function loadConfigBackups() {
     configBackups.value = await dashboardApi.configBackups();
   }
@@ -132,6 +171,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
     discoverPlugins,
     setPluginState,
     saveConfig,
+    updateToolAllowance,
     loadConfigBackups,
     restoreConfigBackup,
   };

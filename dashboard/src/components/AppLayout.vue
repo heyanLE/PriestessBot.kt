@@ -21,6 +21,9 @@
             <span class="status-dot"></span>
             {{ store.health?.status ?? 'Unknown' }}
           </span>
+          <button type="button" class="language-button" @click="toggleDashboardLanguage()" title="Switch language" aria-label="Switch language">
+            {{ dashboardLanguage === 'zh' ? 'EN' : '中文' }}
+          </button>
           <button type="button" class="icon-button" :disabled="store.loading" @click="store.refreshAll()" title="Refresh dashboard data" aria-label="Refresh dashboard data">
             {{ store.loading ? '...' : 'R' }}
           </button>
@@ -47,16 +50,17 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from 'vue';
+import { computed, nextTick, onMounted, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { routes } from '../router';
 import { useDashboardStore } from '../stores/dashboard';
+import { applyTranslations, dashboardLanguage, toggleDashboardLanguage, translate } from '../i18n';
 
 const route = useRoute();
 const store = useDashboardStore();
 const navRoutes = routes.filter((item) => item.meta?.nav !== false);
 
-const currentLabel = computed(() => String(route.meta.label ?? 'Dashboard'));
+const currentLabel = computed(() => translate(String(route.meta.label ?? 'Dashboard')));
 const updatedAt = computed(() => {
   if (!store.lastUpdated) return '';
   return new Intl.DateTimeFormat('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' }).format(store.lastUpdated);
@@ -64,5 +68,17 @@ const updatedAt = computed(() => {
 
 onMounted(() => {
   if (!store.lastUpdated) void store.refreshAll();
+  void nextTick(() => applyTranslations());
+});
+
+watch(
+  () => route.fullPath,
+  () => {
+    void nextTick(() => applyTranslations());
+  },
+);
+
+watch(dashboardLanguage, () => {
+  void nextTick(() => applyTranslations());
 });
 </script>

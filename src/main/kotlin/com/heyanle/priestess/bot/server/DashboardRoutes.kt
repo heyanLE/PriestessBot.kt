@@ -1,13 +1,15 @@
 package com.heyanle.priestess.bot.server
 
 import com.heyanle.priestess.bot.config.PriestessConfig
+import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.defaultForFilePath
 import io.ktor.server.application.Application
 import io.ktor.server.application.call
-import io.ktor.server.http.content.staticResources
 import io.ktor.server.request.path
 import io.ktor.server.request.receive
 import io.ktor.server.response.respond
+import io.ktor.server.response.respondBytes
 import io.ktor.server.response.respondText
 import io.ktor.server.routing.get
 import io.ktor.server.routing.delete
@@ -234,7 +236,13 @@ fun Application.dashboardRoutes(service: DashboardService) {
             }
         }
 
-        staticResources("/assets", "dashboard/assets")
+        get("/assets/{path...}") {
+            val path = call.parameters.getAll("path").orEmpty().joinToString("/")
+            if (path.isBlank() || path.contains("..")) {
+                return@get call.respond(HttpStatusCode.NotFound)
+            }
+            call.respondDashboardAsset(path)
+        }
 
         get("/") {
             call.respondDashboardIndex()
@@ -256,5 +264,19 @@ private suspend fun io.ktor.server.application.ApplicationCall.respondDashboardI
         respond(HttpStatusCode.NotFound, mapOf("error" to "Dashboard frontend is not packaged"))
     } else {
         respondText(index, io.ktor.http.ContentType.Text.Html)
+    }
+}
+
+private suspend fun io.ktor.server.application.ApplicationCall.respondDashboardAsset(path: String) {
+    val resourcePath = "dashboard/assets/$path"
+    val bytes = this::class.java.classLoader.getResource(resourcePath)?.readBytes()
+    if (bytes == null) {
+        respond(HttpStatusCode.NotFound)
+    } else {
+        respondBytes(
+            bytes = bytes,
+            contentType = ContentType.defaultForFilePath(path),
+            status = HttpStatusCode.OK,
+        )
     }
 }

@@ -30,6 +30,8 @@ class ConfigBackedWorkspaceConfigSource(
             providerName = config.agent.providerName,
             tools = WorkspaceToolConfig(
                 enabledTools = config.agent.enabledTools,
+                disabledTools = config.agent.disabledTools,
+                allowedRiskLevels = config.agent.allowedRiskLevels,
             ),
             subAgents = config.subAgents,
         )

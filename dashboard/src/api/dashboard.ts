@@ -56,6 +56,8 @@ export interface AgentConfig {
   maxTokens: number;
   toolTimeoutSeconds: number;
   enabledTools: string[];
+  disabledTools: string[];
+  allowedRiskLevels: ToolDto['riskLevel'][];
 }
 
 export interface PriestessConfig {

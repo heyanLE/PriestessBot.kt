@@ -393,6 +393,8 @@ function defaultAgentConfig(name: string): AgentConfig {
     maxTokens: 4096,
     toolTimeoutSeconds: 30,
     enabledTools: [],
+    disabledTools: [],
+    allowedRiskLevels: ['SAFE_READ', 'SESSION_ACTION', 'EXTERNAL_READ', 'STATE_WRITE', 'HIGH_RISK'],
   };
 }
 

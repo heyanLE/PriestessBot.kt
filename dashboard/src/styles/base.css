@@ -74,6 +74,10 @@ button,
   padding: 0;
 }
 
+.language-button {
+  min-width: 52px;
+}
+
 button.primary,
 .button-link.primary {
   border-color: var(--primary);

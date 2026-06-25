@@ -1,11 +1,11 @@
 <template>
   <div class="workbench-grid wide-detail">
     <section class="panel">
-      <div class="section-title">
-        <div>
-          <h2>Tool Registry</h2>
-          <p>{{ filteredTools.length }} of {{ store.tools.length }} tools visible.</p>
-        </div>
+        <div class="section-title">
+          <div>
+            <h2>Tool Registry</h2>
+            <p>{{ filteredTools.length }} of {{ store.tools.length }} tools visible.</p>
+          </div>
         <div class="toolbar">
           <input v-model="query" type="search" placeholder="Search tools" />
           <select v-model="sourceFilter">
@@ -30,6 +30,9 @@
         </div>
       </div>
 
+      <p v-if="actionNotice" class="notice ok">{{ actionNotice }}</p>
+      <p v-if="actionError" class="notice error">{{ actionError }}</p>
+
       <EmptyState v-if="filteredTools.length === 0" title="No matching tools" detail="Adjust search or filters to widen the registry view." />
       <div v-else class="table-wrap">
         <table class="table">
@@ -39,6 +42,7 @@
               <th>Source</th>
               <th>Risk</th>
               <th>State</th>
+              <th>Action</th>
               <th>Required</th>
             </tr>
           </thead>
@@ -62,8 +66,14 @@
               </td>
               <td>
                 <span class="inline-status" :class="{ ok: tool.effectiveEnabled, danger: !tool.effectiveEnabled }">
-                  {{ tool.effectiveEnabled ? 'Enabled' : 'Disabled' }}
+                  {{ isToolAllowed(tool.name) ? 'Allowed' : 'Denied' }}
                 </span>
+              </td>
+              <td>
+                <div class="toolbar compact-actions">
+                  <button type="button" class="primary" :disabled="!canEditTools || isToolAllowed(tool.name)" @click.stop="allowTool(tool.name)">Allow</button>
+                  <button type="button" :disabled="!canEditTools || !isToolAllowed(tool.name)" @click.stop="denyTool(tool.name)">Deny</button>
+                </div>
               </td>
               <td>{{ tool.parameters.required.length }}</td>
             </tr>
@@ -90,12 +100,19 @@
           <span>Policy</span>
           <div class="chip-row">
             <span class="inline-status" :class="{ ok: selectedTool.effectiveEnabled, danger: !selectedTool.effectiveEnabled }">
-              {{ selectedTool.effectiveEnabled ? 'Enabled' : 'Disabled' }}
+              {{ isToolAllowed(selectedTool.name) ? 'Allowed' : 'Denied' }}
             </span>
             <span class="inline-status" :class="{ muted: selectedTool.defaultEnabled, warn: !selectedTool.defaultEnabled }">
               {{ selectedTool.defaultEnabled ? 'Default on' : 'Default off' }}
             </span>
             <span v-if="selectedTool.auditLog" class="inline-status muted">Audited</span>
+          </div>
+        </div>
+        <div class="detail-item">
+          <span>Actions</span>
+          <div class="toolbar compact-actions">
+            <button type="button" class="primary" :disabled="!canEditTools || isToolAllowed(selectedTool.name)" @click="allowTool(selectedTool.name)">Allow</button>
+            <button type="button" :disabled="!canEditTools || !isToolAllowed(selectedTool.name)" @click="denyTool(selectedTool.name)">Deny</button>
           </div>
         </div>
         <div class="detail-item">
@@ -136,6 +153,8 @@ const sourceFilter = ref('all');
 const riskFilter = ref('all');
 const enabledFilter = ref('all');
 const selectedToolName = ref('');
+const actionNotice = ref('');
+const actionError = ref('');
 
 const filteredTools = computed(() => {
   const normalizedQuery = query.value.trim().toLowerCase();
@@ -155,6 +174,40 @@ const filteredTools = computed(() => {
 });
 
 const selectedTool = computed(() => filteredTools.value.find((tool) => tool.name === selectedToolName.value) ?? filteredTools.value[0] ?? null);
+const canEditTools = computed(() => store.config !== null);
+
+function isToolAllowed(name: string) {
+  const config = store.config?.agent;
+  if (!config) return false;
+  const enabledTools = config.enabledTools ?? [];
+  const disabledTools = config.disabledTools ?? [];
+  if (disabledTools.includes(name)) return false;
+  if (enabledTools.length > 0) return enabledTools.includes(name);
+  const tool = store.tools.find((item) => item.name === name);
+  return tool ? tool.defaultEnabled && !disabledTools.includes(name) : false;
+}
+
+async function allowTool(name: string) {
+  actionNotice.value = '';
+  actionError.value = '';
+  try {
+    await store.updateToolAllowance(name, true);
+    actionNotice.value = `Allowed ${name}.`;
+  } catch (cause) {
+    actionError.value = cause instanceof Error ? cause.message : String(cause);
+  }
+}
+
+async function denyTool(name: string) {
+  actionNotice.value = '';
+  actionError.value = '';
+  try {
+    await store.updateToolAllowance(name, false);
+    actionNotice.value = `Denied ${name}.`;
+  } catch (cause) {
+    actionError.value = cause instanceof Error ? cause.message : String(cause);
+  }
+}
 
 watch(filteredTools, (nextTools) => {
   if (!nextTools.some((tool) => tool.name === selectedToolName.value)) {
@@ -162,3 +215,9 @@ watch(filteredTools, (nextTools) => {
   }
 });
 </script>
+
+<style scoped>
+.compact-actions {
+  flex-wrap: nowrap;
+}
+</style>

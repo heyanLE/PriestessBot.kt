@@ -15,4 +15,6 @@ data class AgentConfig(
     val maxTokens: Int = 4096,
     val toolTimeoutSeconds: Long = 30,
     val enabledTools: List<String> = emptyList(),
+    val disabledTools: List<String> = emptyList(),
+    val allowedRiskLevels: List<com.heyanle.priestess.bot.tool.ToolRiskLevel> = com.heyanle.priestess.bot.tool.ToolRiskLevel.entries,
 )
