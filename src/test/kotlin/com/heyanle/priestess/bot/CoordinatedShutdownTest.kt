@@ -97,6 +97,7 @@ class CoordinatedShutdownTest {
                 "plugins" to { order += "plugins" },
                 "providers" to { order += "providers" },
                 "tools" to { order += "tools" },
+                "workspace" to { order += "workspace" },
                 "database" to { order += "database" },
                 "config" to { order += "config" },
             ),
@@ -105,7 +106,7 @@ class CoordinatedShutdownTest {
         runtime.stop()
 
         assertEquals(
-            listOf("platforms", "pipeline", "server", "plugins", "providers", "tools", "database", "config"),
+            listOf("platforms", "pipeline", "server", "plugins", "providers", "tools", "workspace", "database", "config"),
             order,
         )
     }

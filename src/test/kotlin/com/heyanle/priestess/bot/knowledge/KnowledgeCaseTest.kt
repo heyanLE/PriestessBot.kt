@@ -1,7 +1,6 @@
 package com.heyanle.priestess.bot.knowledge
 
-import com.heyanle.priestess.bot.core.db.DatabaseController
-import java.nio.file.Files
+import com.heyanle.priestess.bot.testkit.testKnowledgeCase
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -43,11 +42,5 @@ class KnowledgeCaseTest {
         val results = knowledge.search("alpha", base.id, limit = 2)
 
         assertEquals(2, results.size)
-    }
-
-    private fun testKnowledgeCase(): KnowledgeCase {
-        val dbPath = Files.createTempFile("priestess-knowledge", ".sqlite")
-        val db = DatabaseController(dbPath.toString())
-        return KnowledgeCase(KnowledgeController(db))
     }
 }

@@ -8,6 +8,8 @@ import com.heyanle.priestess.bot.tool.FunctionTool
 import com.heyanle.priestess.bot.tool.ParameterDef
 import com.heyanle.priestess.bot.tool.ToolParameters
 import com.heyanle.priestess.bot.tool.ToolResult
+import com.heyanle.priestess.bot.tool.ToolCapabilities
+import com.heyanle.priestess.bot.tool.ToolRiskLevel
 import com.heyanle.priestess.bot.tool.ToolSchema
 import com.heyanle.priestess.bot.tool.annotation.Tool
 
@@ -29,6 +31,10 @@ class SendMessageTool : FunctionTool() {
             ),
             required = listOf("content"),
         ),
+        riskLevel = ToolRiskLevel.SESSION_ACTION,
+        requiredCapabilities = listOf(ToolCapabilities.PLATFORM),
+        defaultEnabled = false,
+        auditLog = true,
     )
 
     override suspend fun execute(context: AgentToolContext, args: Map<String, String>): ToolResult {

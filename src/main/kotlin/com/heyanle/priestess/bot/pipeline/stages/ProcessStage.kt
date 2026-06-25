@@ -39,7 +39,12 @@ class ProcessStage(
         }
 
         val agent = agentContext.agent
-        val provider = providerCase.getByName(agent.model)
+        val preferredProviderName = agentContext.metadata["provider_name"]
+            ?: agentContext.metadata["providerName"]
+        val provider = preferredProviderName
+            ?.takeIf { it.isNotBlank() }
+            ?.let { providerCase.getByName(it) }
+            ?: providerCase.getByName(agent.model)
             ?: providerCase.getAll().firstOrNull()
 
         if (provider == null) {

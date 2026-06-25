@@ -14,10 +14,14 @@ import kotlinx.serialization.json.putJsonObject
  * Describes the name, description, and parameter structure that LLMs use for tool calling.
  */
 @Serializable
-data class ToolSchema(
+data class ToolSchema @JvmOverloads constructor(
     val name: String,
     val description: String = "",
     val parameters: ToolParameters = ToolParameters(),
+    val riskLevel: ToolRiskLevel = ToolRiskLevel.SAFE_READ,
+    val requiredCapabilities: List<String> = emptyList(),
+    val defaultEnabled: Boolean = true,
+    val auditLog: Boolean = false,
 ) {
     /**
      * Converts this schema to OpenAI function-calling format.
@@ -65,6 +69,28 @@ data class ToolSchema(
             })
         }
     }
+}
+
+@Serializable
+enum class ToolRiskLevel {
+    SAFE_READ,
+    SESSION_ACTION,
+    EXTERNAL_READ,
+    STATE_WRITE,
+    HIGH_RISK,
+}
+
+object ToolCapabilities {
+    const val PLATFORM = "platform"
+    const val SESSION = "session"
+    const val NETWORK = "network"
+    const val CONVERSATION_HISTORY = "conversation_history"
+    const val MEMORY = "memory"
+    const val REMINDER = "reminder"
+    const val PROVIDER_SEARCH = "provider_search"
+    const val PLUGIN = "plugin"
+    const val MCP = "mcp"
+    const val KNOWLEDGE = "knowledge"
 }
 
 /**

@@ -24,6 +24,10 @@ class ConversationCase(
         return history.getRecentMessages(conversationId, count)
     }
 
+    fun searchMessages(query: ConversationMessageSearchQuery): List<ConversationSearchResult> {
+        return history.search(query)
+    }
+
     fun storeMessage(
         conversationId: String,
         role: MessageRole,

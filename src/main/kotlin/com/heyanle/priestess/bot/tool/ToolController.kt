@@ -11,17 +11,18 @@ import com.heyanle.priestess.bot.core.controller.BaseController
  */
 class ToolController : BaseController("ToolController") {
 
-    private val tools = mutableListOf<FunctionTool>()
+    private val tools = mutableListOf<RegisteredTool>()
     private val toolSet = ToolSet()
 
-    fun register(tool: FunctionTool) {
-        tools.add(tool)
+    fun register(tool: FunctionTool, metadata: ToolMetadata = ToolMetadata()) {
+        tools.removeAll { it.schema.name == tool.schema.name }
+        tools.add(RegisteredTool(tool, metadata))
+        toolSet.removeByName(tool.schema.name)
         toolSet.add(tool)
     }
 
     fun registerAll(newTools: Collection<FunctionTool>) {
-        tools.addAll(newTools)
-        toolSet.addAll(newTools)
+        newTools.forEach { register(it) }
     }
 
     fun unregister(name: String) {
@@ -31,7 +32,9 @@ class ToolController : BaseController("ToolController") {
 
     fun get(name: String): FunctionTool? = toolSet.get(name)
 
-    fun getAll(): List<FunctionTool> = tools.toList()
+    fun getAll(): List<FunctionTool> = tools.map { it.tool }
+
+    fun getRegisteredTools(): List<RegisteredTool> = tools.toList()
 
     fun getToolSet(): ToolSet = toolSet
 

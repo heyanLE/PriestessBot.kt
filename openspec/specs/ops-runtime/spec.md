@@ -1,0 +1,131 @@
+# ops-runtime Specification
+
+## Purpose
+TBD - created while syncing archived changes. Update Purpose after archive.
+
+## Requirements
+
+### Requirement: Runtime metrics SHALL support Prometheus scraping
+
+The runtime SHALL expose process-local operational metrics in Prometheus text exposition format.
+
+#### Scenario: Metrics endpoint returns Prometheus text
+
+- **GIVEN** the Dashboard/API server is enabled
+- **WHEN** an operator requests `GET /metrics`
+- **THEN** the response SHALL be `text/plain`
+- **AND** the body SHALL include HELP and TYPE metadata for runtime metrics
+
+#### Scenario: Pipeline messages are counted
+
+- **GIVEN** a platform message is accepted by the pipeline
+- **WHEN** pipeline processing completes or fails
+- **THEN** the metrics registry SHALL increment `priestess_pipeline_messages_total`
+- **AND** it SHALL record pipeline duration with platform and status labels
+
+#### Scenario: LLM requests are measured
+
+- **GIVEN** the process stage invokes an LLM provider
+- **WHEN** the request returns a final response or error
+- **THEN** the metrics registry SHALL increment `priestess_llm_requests_total`
+- **AND** it SHALL record request duration with provider and status labels
+
+#### Scenario: Tool calls are counted
+
+- **GIVEN** an agent attempts to execute a tool
+- **WHEN** the tool call succeeds, fails, or references an unknown tool
+- **THEN** the metrics registry SHALL increment `priestess_tool_calls_total`
+- **AND** the metric SHALL include tool and status labels
+
+#### Scenario: Metrics exclude sensitive runtime data
+
+- **GIVEN** metrics have been recorded for messages, LLM calls, and tools
+- **WHEN** the Prometheus endpoint is scraped
+- **THEN** the metrics SHALL NOT include prompts, message text, session IDs, user IDs, API keys, tool arguments, or exception messages
+
+### Requirement: Container deployment assets
+The system SHALL provide container deployment assets for running PriestessBot in production-like environments.
+
+#### Scenario: Docker image can run application distribution
+- **WHEN** the Docker image is built
+- **THEN** it packages the Gradle application distribution
+- **AND** runs the configured application entrypoint
+
+#### Scenario: Compose defines persistent paths
+- **WHEN** docker compose is used
+- **THEN** config, data, logs, and plugins paths are mounted as persistent volumes
+
+### Requirement: Health check support
+The system SHALL provide a health endpoint suitable for container health checks.
+
+#### Scenario: Container health check
+- **WHEN** the container health check runs
+- **THEN** it calls `/health`
+- **AND** treats a healthy response as success
+
+### Requirement: Runtime health SHALL support deployment troubleshooting
+
+The runtime SHALL expose enough non-sensitive health detail to verify the active config, storage location, and extension counts in deployed environments.
+
+#### Scenario: NAS or Docker health identifies active paths
+
+- **GIVEN** the runtime starts with an explicit config file and database path
+- **WHEN** health is queried
+- **THEN** diagnostics SHALL identify the active config path
+- **AND** diagnostics SHALL identify the active database path
+
+### Requirement: Runtime configuration SHALL support deployment environment overrides
+
+The runtime SHALL allow selected operational config values to be overridden by process environment variables after the config file is loaded.
+
+#### Scenario: Server, storage, and plugin overrides apply at startup
+
+- **GIVEN** a config file defines server, database, and plugin settings
+- **AND** process environment variables define supported overrides for those settings
+- **WHEN** the runtime loads configuration
+- **THEN** the effective config SHALL use the environment values
+- **AND** config slice flows SHALL publish the overridden values
+
+#### Scenario: Overrides are reapplied after config reload
+
+- **GIVEN** the runtime has loaded configuration with supported environment overrides
+- **WHEN** the config file changes and configuration is reloaded
+- **THEN** the reloaded effective config SHALL include the latest file values
+- **AND** supported environment values SHALL still take precedence
+
+#### Scenario: Loading config does not persist environment overrides
+
+- **GIVEN** a config file defines a value
+- **AND** an environment variable overrides that value
+- **WHEN** the runtime loads or reloads configuration
+- **THEN** the file content SHALL NOT be rewritten only because of the override
+
+#### Scenario: Invalid override values are ignored
+
+- **GIVEN** a config file defines valid operational settings
+- **AND** process environment variables contain invalid values for supported numeric or boolean overrides
+- **WHEN** the runtime loads configuration
+- **THEN** invalid override values SHALL be ignored
+- **AND** the effective config SHALL keep the file-backed values for those fields
+
+### Requirement: Runtime deployment SHALL tolerate host-generated configuration files
+
+Operational startup SHALL tolerate configuration files generated by common host tooling when the JSON content is otherwise valid.
+
+#### Scenario: Windows-generated UTF-8 config starts successfully
+
+- **GIVEN** a deployment writes valid config JSON with a leading UTF-8 byte order mark
+- **WHEN** the runtime starts using that config path
+- **THEN** startup SHALL use the intended config values
+- **AND** it SHALL NOT silently fall back to default provider, platform, server, or database settings because of the encoding marker
+
+### Requirement: Runtime deployment SHALL support config recovery
+
+The runtime SHALL provide an operational recovery path for accidental config edits in deployed environments.
+
+#### Scenario: NAS operator can recover a previous config
+
+- **GIVEN** the runtime is using a persistent config file
+- **AND** a previous config backup exists
+- **WHEN** the operator restores that backup through the Dashboard API
+- **THEN** the runtime SHALL use the restored config without requiring manual file copy operations

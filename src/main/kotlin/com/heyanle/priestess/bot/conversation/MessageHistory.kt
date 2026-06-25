@@ -1,10 +1,12 @@
 package com.heyanle.priestess.bot.conversation
 
+import com.heyanle.priestess.bot.core.db.ConversationsTable
 import com.heyanle.priestess.bot.core.db.MessagesTable
 import com.heyanle.priestess.bot.core.db.DatabaseController
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicLong
 
 enum class MessageRole(val label: String) {
     USER("user"),
@@ -23,9 +25,27 @@ data class StoredMessage(
     val createdAt: Long,
 )
 
+data class ConversationMessageSearchQuery(
+    val conversationId: String? = null,
+    val platform: String? = null,
+    val sessionId: String? = null,
+    val query: String = "",
+    val role: MessageRole? = null,
+    val sinceMillis: Long? = null,
+    val untilMillis: Long? = null,
+    val limit: Int = 20,
+)
+
+data class ConversationSearchResult(
+    val message: StoredMessage,
+    val conversation: Conversation,
+    val snippet: String,
+)
+
 class MessageHistory(
     private val db: DatabaseController,
 ) {
+    private val lastStoredAt = AtomicLong(0L)
 
     fun store(
         conversationId: String,
@@ -36,7 +56,7 @@ class MessageHistory(
     ): StoredMessage {
         return db.execute {
             val id = UUID.randomUUID().toString()
-            val now = System.currentTimeMillis()
+            val now = nextStoredAt()
             MessagesTable.insert {
                 it[MessagesTable.id] = id
                 it[MessagesTable.conversationId] = conversationId
@@ -47,6 +67,13 @@ class MessageHistory(
                 it[createdAt] = now
             }
             StoredMessage(id, conversationId, role, content, toolCalls, toolCallId, now)
+        }
+    }
+
+    private fun nextStoredAt(): Long {
+        return lastStoredAt.updateAndGet { previous ->
+            val current = System.currentTimeMillis()
+            if (current > previous) current else previous + 1
         }
     }
 
@@ -73,6 +100,50 @@ class MessageHistory(
         }
     }
 
+    fun search(searchQuery: ConversationMessageSearchQuery): List<ConversationSearchResult> {
+        val limit = searchQuery.limit.coerceIn(1, 50)
+        val normalizedQuery = searchQuery.query.trim()
+        return db.execute {
+            val joined = MessagesTable
+                .innerJoin(ConversationsTable)
+                .selectAll()
+                .apply {
+                    searchQuery.conversationId?.takeIf { it.isNotBlank() }?.let { id ->
+                        where { MessagesTable.conversationId eq id }
+                    }
+                }
+
+            joined
+                .orderBy(MessagesTable.createdAt, SortOrder.DESC)
+                .map { row -> row.toSearchResult() }
+                .asSequence()
+                .filter { result ->
+                    searchQuery.platform.isNullOrBlank() || result.conversation.platform == searchQuery.platform
+                }
+                .filter { result ->
+                    searchQuery.sessionId.isNullOrBlank() || result.conversation.sessionId == searchQuery.sessionId
+                }
+                .filter { result ->
+                    searchQuery.role == null || result.message.role == searchQuery.role
+                }
+                .filter { result ->
+                    searchQuery.sinceMillis == null || result.message.createdAt >= searchQuery.sinceMillis
+                }
+                .filter { result ->
+                    searchQuery.untilMillis == null || result.message.createdAt <= searchQuery.untilMillis
+                }
+                .filter { result ->
+                    normalizedQuery.isBlank() || result.message.content.orEmpty().contains(normalizedQuery, ignoreCase = true)
+                }
+                .take(limit)
+                .map { result ->
+                    result.copy(snippet = snippet(result.message.content.orEmpty(), normalizedQuery))
+                }
+                .toList()
+                .asReversed()
+        }
+    }
+
     fun deleteByConversation(conversationId: String) {
         db.execute {
             MessagesTable.deleteWhere { MessagesTable.conversationId eq conversationId }
@@ -92,5 +163,30 @@ class MessageHistory(
             toolCallId = this[MessagesTable.toolCallId],
             createdAt = this[MessagesTable.createdAt],
         )
+    }
+
+    private fun ResultRow.toSearchResult(): ConversationSearchResult {
+        return ConversationSearchResult(
+            message = toStoredMessage(),
+            conversation = Conversation(
+                id = this[ConversationsTable.id],
+                platform = this[ConversationsTable.platform],
+                sessionId = this[ConversationsTable.sessionId],
+                createdAt = this[ConversationsTable.createdAt],
+                updatedAt = this[ConversationsTable.updatedAt],
+            ),
+            snippet = "",
+        )
+    }
+
+    private fun snippet(content: String, query: String): String {
+        if (content.isBlank()) return ""
+        if (query.isBlank()) return content.take(240)
+        val index = content.indexOf(query, ignoreCase = true).coerceAtLeast(0)
+        val start = (index - 80).coerceAtLeast(0)
+        val end = (index + query.length + 160).coerceAtMost(content.length)
+        val prefix = if (start > 0) "..." else ""
+        val suffix = if (end < content.length) "..." else ""
+        return prefix + content.substring(start, end) + suffix
     }
 }

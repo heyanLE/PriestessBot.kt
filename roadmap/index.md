@@ -33,3 +33,16 @@
 | 知识库 / RAG | [knowledge-rag.md](v2/knowledge-rag.md) |
 | Dashboard 增强 | [dashboard-enhancement.md](v2/dashboard-enhancement.md) |
 | 运维增强 | [ops.md](v2/ops.md) |
+
+## v3 — 里程碑三期
+
+> 目标：从「可扩展」到「质量可靠、能力完整」，重点推进测试覆盖、核心 Tool、工作区热重载、人格与记忆管理。
+
+| 功能模块 | 文档 |
+|---------|------|
+| 概览 | [v3.md](v3/v3.md) |
+| 测试覆盖与质量体系 | [testing.md](v3/testing.md) |
+| 核心 Tool 对齐与补齐 | [core-tools.md](v3/core-tools.md) |
+| 工作区与配置热重载 | [workspace-hot-reload.md](v3/workspace-hot-reload.md) |
+| 人格与记忆管理 | [persona-memory.md](v3/persona-memory.md) |
+| 执行计划 | [execution-plan.md](v3/execution-plan.md) |

@@ -62,6 +62,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import java.io.File
 import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -69,6 +70,27 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class ArchitectureRefactorTest {
+
+    @Test
+    fun `BaseController subclasses use Controller suffix`() {
+        val sourceRoot = File("src/main/kotlin")
+        val violations = sourceRoot
+            .walkTopDown()
+            .filter { it.isFile && it.extension == "kt" }
+            .flatMap { file ->
+                val text = file.readText()
+                Regex("""class\s+([A-Za-z0-9_]+)[^{\n]*:\s*BaseController\b""")
+                    .findAll(text)
+                    .map { match -> file.invariantSeparatorsPath to match.groupValues[1] }
+            }
+            .filterNot { (_, className) -> className.endsWith("Controller") }
+            .toList()
+
+        assertTrue(
+            violations.isEmpty(),
+            "BaseController subclasses must end with Controller: $violations",
+        )
+    }
 
     @Test
     fun `ConfigCase update pushes segmented state flows`() {
@@ -372,12 +394,15 @@ class ArchitectureRefactorTest {
         require(conversation != null)
 
         withTimeout(1_000) {
-            while (messageHistory.getByConversation(conversation.id).size < 2) {
+            while (messageHistory.getByConversation(conversation.id).size < 4) {
                 delay(10)
             }
         }
         val stored = messageHistory.getByConversation(conversation.id)
-        assertEquals(listOf(MessageRole.USER, MessageRole.ASSISTANT), stored.map { it.role })
+        assertEquals(listOf(MessageRole.USER, MessageRole.ASSISTANT, MessageRole.TOOL, MessageRole.ASSISTANT), stored.map { it.role })
+        assertTrue(stored[1].toolCalls?.contains("echo_tool") == true)
+        assertEquals("tool-ok", stored[2].content)
+        assertEquals("call-1", stored[2].toolCallId)
         assertEquals("final after tool", stored.last().content)
 
         pipelineController.stop()

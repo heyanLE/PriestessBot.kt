@@ -7,19 +7,41 @@
       </div>
       <button type="button" class="primary" @click="store.testProviders()">Test All</button>
     </div>
-    <div class="grid list-grid">
-      <article v-for="provider in store.providers" :key="provider.name" class="card">
-        <div class="section-title">
-          <h3>{{ provider.displayName }}</h3>
-          <StatusDot v-if="provider.name in store.providerTests" :label="store.providerTests[provider.name] ? 'Online' : 'Failed'" :tone="store.providerTests[provider.name] ? 'ok' : 'error'" />
-        </div>
-        <p>{{ provider.name }} · {{ provider.kind }}</p>
-        <p>
-          Tools {{ yesNo(provider.supportToolCalling) }},
-          vision {{ yesNo(provider.supportVision) }},
-          streaming {{ yesNo(provider.supportStreaming) }}
-        </p>
-      </article>
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Kind</th>
+            <th>Health</th>
+            <th>Capabilities</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="provider in store.providers" :key="provider.name">
+            <td>
+              <strong>{{ provider.displayName }}</strong>
+              <p class="muted">{{ provider.name }}</p>
+            </td>
+            <td>{{ provider.kind }}</td>
+            <td>
+              <StatusDot
+                v-if="provider.name in store.providerTests"
+                :label="store.providerTests[provider.name] ? 'Online' : 'Failed'"
+                :tone="store.providerTests[provider.name] ? 'ok' : 'error'"
+              />
+              <span v-else class="inline-status muted">Not tested</span>
+            </td>
+            <td>
+              <div class="chip-row">
+                <span class="chip">Tools {{ yesNo(provider.supportToolCalling) }}</span>
+                <span class="chip">Vision {{ yesNo(provider.supportVision) }}</span>
+                <span class="chip">Streaming {{ yesNo(provider.supportStreaming) }}</span>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
     </div>
   </section>
 </template>

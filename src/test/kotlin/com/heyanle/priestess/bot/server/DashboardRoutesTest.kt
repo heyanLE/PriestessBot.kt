@@ -23,11 +23,19 @@ import com.heyanle.priestess.bot.conversation.MessageRole
 import com.heyanle.priestess.bot.core.db.DatabaseController
 import com.heyanle.priestess.bot.knowledge.KnowledgeCase
 import com.heyanle.priestess.bot.knowledge.KnowledgeController
+import com.heyanle.priestess.bot.memory.MemoryCase
+import com.heyanle.priestess.bot.memory.MemoryController
+import com.heyanle.priestess.bot.memory.MemoryScope
+import com.heyanle.priestess.bot.memory.MemoryType
 import com.heyanle.priestess.bot.observability.MetricsRegistry
+import com.heyanle.priestess.bot.persona.PersonaCase
+import com.heyanle.priestess.bot.persona.PersonaController
+import com.heyanle.priestess.bot.persona.PersonaMemoryInjector
+import com.heyanle.priestess.bot.persona.PersonaUpsertRequest
 import com.heyanle.priestess.bot.plugin.PluginCase
 import com.heyanle.priestess.bot.plugin.PluginExtensionRegistry
 import com.heyanle.priestess.bot.plugin.PluginManifest
-import com.heyanle.priestess.bot.plugin.PluginManager
+import com.heyanle.priestess.bot.plugin.PluginController
 import com.heyanle.priestess.bot.plugin.PluginState
 import com.heyanle.priestess.bot.platform.PlatformCase
 import com.heyanle.priestess.bot.platform.PlatformController
@@ -48,12 +56,18 @@ import com.heyanle.priestess.bot.tool.ToolResult
 import com.heyanle.priestess.bot.tool.ToolSchema
 import com.heyanle.priestess.bot.tool.ToolController
 import com.heyanle.priestess.bot.tool.ToolExecutor
+import com.heyanle.priestess.bot.tool.builtin.HealthCheckTool
 import com.heyanle.priestess.bot.tool.builtin.registerBuiltinTools
+import com.heyanle.priestess.bot.skill.SkillCase
+import com.heyanle.priestess.bot.skill.SkillController
+import com.heyanle.priestess.bot.workspace.ConfigBackedWorkspaceConfigSource
+import com.heyanle.priestess.bot.workspace.WorkspaceController
 import io.ktor.client.call.body
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.websocket.DefaultClientWebSocketSession
 import io.ktor.client.plugins.websocket.WebSockets
 import io.ktor.client.plugins.websocket.webSocket
+import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.post
@@ -68,6 +82,8 @@ import io.ktor.server.testing.testApplication
 import io.ktor.websocket.Frame
 import io.ktor.websocket.readText
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.io.File
@@ -111,9 +127,22 @@ class DashboardRoutesTest {
         assertEquals("1", healthBody.diagnostics["configuredProviders"])
         assertTrue((healthBody.diagnostics["availableProviders"]?.toIntOrNull() ?: 0) >= 1)
         assertTrue((healthBody.diagnostics["registeredTools"]?.toIntOrNull() ?: 0) >= 1)
+        assertEquals("UP", healthBody.components["providers"])
+        assertEquals("UP", healthBody.components["tools"])
+        assertEquals("UP", healthBody.components["plugins"])
+        assertEquals("UP", healthBody.components["workspaceReload"])
         assertFalse(healthBody.diagnostics.values.any { value ->
             value.contains("secret-provider-key") || value.contains("secret-platform-token")
         })
+
+        val healthTool = HealthCheckTool { service.healthProviderForTest() }
+        val healthToolBody = Json.decodeFromString<HealthResponse>(
+            runBlocking { healthTool.execute(AgentToolContext(), emptyMap()).output },
+        )
+        assertEquals(healthBody.components.keys, healthToolBody.components.keys)
+        assertEquals(healthBody.diagnostics.keys, healthToolBody.diagnostics.keys)
+        assertFalse(healthToolBody.toString().contains("secret-provider-key"))
+        assertFalse(healthToolBody.toString().contains("secret-platform-token"))
 
         val metrics = client.get("/metrics")
         assertEquals(HttpStatusCode.OK, metrics.status)
@@ -148,6 +177,10 @@ class DashboardRoutesTest {
 
         val platforms = client.get("/api/platforms").body<List<PlatformStatusDto>>()
         assertTrue(platforms.any { it.name == "health-platform" && !it.enabled && !it.running })
+        val startedPlatformConfig = client.post("/api/platforms/health-platform/start").body<PriestessConfig>()
+        assertTrue(startedPlatformConfig.platforms.single { it.name == "health-platform" }.enabled)
+        val stoppedPlatformConfig = client.post("/api/platforms/health-platform/stop").body<PriestessConfig>()
+        assertFalse(stoppedPlatformConfig.platforms.single { it.name == "health-platform" }.enabled)
         assertTrue(client.get("/api/providers").body<List<ProviderDto>>().isNotEmpty())
         assertTrue(client.get("/api/tools").body<List<ToolDto>>().isNotEmpty())
         assertTrue(client.get("/api/conversations").body<List<ConversationDto>>().isEmpty())
@@ -352,10 +385,63 @@ class DashboardRoutesTest {
         val platforms = client.get("/api/platforms").body<List<PlatformStatusDto>>()
         val providerTests = client.post("/api/providers/test").body<Map<String, Boolean>>()
 
-        assertTrue(tools.any { it.name == "demo-tool" && it.description == "Demo tool" })
+        assertTrue(tools.any {
+            it.name == "demo-tool" &&
+                it.description == "Demo tool" &&
+                it.source.name == "PLUGIN" &&
+                it.owner == "demo"
+        })
+        assertTrue(tools.any {
+            it.name == "list_tools" &&
+                it.source.name == "BUILTIN" &&
+                it.riskLevel.name == "SAFE_READ" &&
+                it.defaultEnabled &&
+                it.effectiveEnabled
+        })
         assertTrue(providers.any { it.name == "demo-provider" && it.displayName == "Demo Provider" })
         assertTrue(platforms.any { it.name == "demo-platform" && it.type == "demo-platform" })
         assertEquals(true, providerTests["demo-provider"])
+    }
+
+    @Test
+    fun `workspace routes expose status detail scoped resources and reload`() = testApplication {
+        val service = testService()
+        application {
+            configureDashboardApplication(service, corsEnabled = false)
+        }
+        val client = createClient {
+            install(ContentNegotiation) { json() }
+        }
+
+        val list = client.get("/api/workspaces").body<WorkspaceListResponse>()
+        val defaultStatus = list.workspaces.single { it.id == "default" }
+        assertEquals("Default Workspace", defaultStatus.name)
+        assertTrue(defaultStatus.enabled)
+        assertNotNull(defaultStatus.activeSnapshotVersion)
+
+        val detail = client.get("/api/workspaces/default").body<WorkspaceDetailDto>()
+        assertEquals("default", detail.status.id)
+        assertEquals("test-provider", detail.providerName)
+        assertTrue(detail.agents.contains("dashboard-agent"))
+        assertTrue(detail.tools.contains("list_tools"))
+        assertTrue(detail.memory.enabled)
+
+        val tools = client.get("/api/workspaces/default/tools").body<WorkspaceResourceListResponse>()
+        assertEquals("default", tools.workspaceId)
+        assertTrue(tools.resources.contains("list_tools"))
+
+        val skills = client.get("/api/workspaces/default/skills").body<WorkspaceResourceListResponse>()
+        assertEquals("default", skills.workspaceId)
+
+        val memory = client.get("/api/workspaces/default/memory").body<com.heyanle.priestess.bot.workspace.WorkspaceMemoryPolicyConfig>()
+        assertEquals(5, memory.maxInjectedMemories)
+
+        val reload = client.post("/api/workspaces/default/reload").body<com.heyanle.priestess.bot.workspace.WorkspaceReloadResult>()
+        assertTrue(reload.success)
+        assertEquals("default", reload.workspaceId)
+
+        val reloadAll = client.post("/api/workspaces/reload").body<List<com.heyanle.priestess.bot.workspace.WorkspaceReloadResult>>()
+        assertTrue(reloadAll.any { it.workspaceId == "default" && it.success })
     }
 
     @Test
@@ -418,6 +504,84 @@ class DashboardRoutesTest {
         assertEquals("after tool", response.content)
         assertTrue(response.events.any { it.type == "tool_start" && it.toolName == "dashboard_echo" })
         assertTrue(response.events.any { it.type == "tool_end" && it.toolName == "dashboard_echo" && it.success == true })
+    }
+
+    @Test
+    fun `agent chat route includes persona and memory injection trace`() = testApplication {
+        val service = testService(testProvider = ScriptedProvider(finalContent = "trace reply"))
+        val persona = service.personaCaseForTest().upsert(
+            PersonaUpsertRequest(
+                workspaceId = "default",
+                name = "Trace Persona",
+                tone = "precise",
+                systemPromptTemplate = "Use remembered preferences.",
+                agentNames = listOf("dashboard-agent"),
+            ),
+        )
+        val memory = service.memoryCaseForTest().save(
+            content = "User likes concise Kotlin examples",
+            type = MemoryType.PREFERENCE,
+            scope = MemoryScope.SESSION,
+            scopeContext = com.heyanle.priestess.bot.memory.MemoryScopeContext(
+                workspaceId = "default",
+                sessionId = "trace-session",
+                userId = "trace-user",
+                agentName = "dashboard-agent",
+            ),
+        )
+        application {
+            configureDashboardApplication(service, corsEnabled = false)
+        }
+        val client = createClient {
+            install(ContentNegotiation) { json() }
+        }
+
+        val response = client.post("/api/agent/chat") {
+            contentType(ContentType.Application.Json)
+            setBody(
+                AgentChatRequest(
+                    message = "Need concise Kotlin",
+                    sessionId = "trace-session",
+                    userId = "trace-user",
+                ),
+            )
+        }.body<AgentChatResponse>()
+
+        assertEquals("FINAL", response.status)
+        assertEquals(persona.id, response.injectionTrace.personaId)
+        assertEquals("Trace Persona", response.injectionTrace.personaName)
+        assertEquals(1, response.injectionTrace.memoryCount)
+        assertEquals(memory.id, response.injectionTrace.memories.single().id)
+        assertTrue(response.injectionTrace.metadata.getValue("injected_memory_ids").contains(memory.id))
+    }
+
+    @Test
+    fun `agent chat route exposes timed out tool event details`() = testApplication {
+        val service = testService(
+            testProvider = ScriptedProvider(toolFirst = true, finalContent = "after timeout"),
+            echoToolDelayMs = 100,
+            toolTimeoutSeconds = 0,
+        )
+        application {
+            configureDashboardApplication(service, corsEnabled = false)
+        }
+        val client = createClient {
+            install(ContentNegotiation) { json() }
+        }
+
+        val response = client.post("/api/agent/chat") {
+            contentType(ContentType.Application.Json)
+            setBody(AgentChatRequest(message = "use slow tool"))
+        }.body<AgentChatResponse>()
+
+        assertEquals("FINAL", response.status)
+        assertEquals("after timeout", response.content)
+        assertTrue(response.events.any {
+            it.type == "tool_end" &&
+                it.toolName == "dashboard_echo" &&
+                it.success == false &&
+                it.errorCode == "TIMEOUT"
+        })
     }
 
     @Test
@@ -485,6 +649,112 @@ class DashboardRoutesTest {
     }
 
     @Test
+    fun `persona and memory routes manage records and enforce scoped search`() = testApplication {
+        val service = testService()
+        application {
+            configureDashboardApplication(service, corsEnabled = false)
+        }
+        val client = createClient {
+            install(ContentNegotiation) { json() }
+        }
+
+        val persona = client.post("/api/personas") {
+            contentType(ContentType.Application.Json)
+            setBody(
+                PersonaUpsertDto(
+                    workspaceId = "default",
+                    name = "Careful Assistant",
+                    tone = "careful",
+                    boundaries = listOf("Do not leak secrets"),
+                    systemPromptTemplate = "Ask clarifying questions.",
+                    agentNames = listOf("dashboard-agent"),
+                ),
+            )
+        }.body<com.heyanle.priestess.bot.persona.Persona>()
+        assertEquals("Careful Assistant", persona.name)
+
+        val personas = client.get("/api/personas?workspaceId=default").body<PersonaListResponse>()
+        assertEquals(listOf(persona.id), personas.personas.map { it.id })
+
+        val resolved = client.post("/api/personas/resolve") {
+            contentType(ContentType.Application.Json)
+            setBody(PersonaResolveRequest(workspaceId = "default", agentName = "dashboard-agent"))
+        }.body<PersonaResolveResponse>()
+        assertEquals(persona.id, resolved.persona?.id)
+
+        val memory = client.post("/api/memory") {
+            contentType(ContentType.Application.Json)
+            setBody(
+                MemorySaveRequest(
+                    workspaceId = "default",
+                    scope = MemoryScope.SESSION,
+                    sessionId = "session-1",
+                    content = "User prefers concise Kotlin answers",
+                    type = MemoryType.PREFERENCE,
+                    tags = listOf("kotlin"),
+                ),
+            )
+        }.body<com.heyanle.priestess.bot.memory.MemoryRecord>()
+        assertEquals("User prefers concise Kotlin answers", memory.content)
+
+        client.post("/api/memory") {
+            contentType(ContentType.Application.Json)
+            setBody(
+                MemorySaveRequest(
+                    workspaceId = "default",
+                    scope = MemoryScope.SESSION,
+                    sessionId = "session-2",
+                    content = "Hidden session memory",
+                    type = MemoryType.PREFERENCE,
+                    tags = listOf("kotlin"),
+                ),
+            )
+        }
+        val expiredMemory = client.post("/api/memory") {
+            contentType(ContentType.Application.Json)
+            setBody(
+                MemorySaveRequest(
+                    workspaceId = "default",
+                    scope = MemoryScope.SESSION,
+                    sessionId = "session-1",
+                    content = "Expired memory should be cleaned",
+                    type = MemoryType.FACT,
+                    tags = listOf("expired"),
+                    expiresAt = System.currentTimeMillis() - 1_000,
+                ),
+            )
+        }.body<com.heyanle.priestess.bot.memory.MemoryRecord>()
+
+        val listed = client.get("/api/memory?workspaceId=default&sessionId=session-1&type=PREFERENCE&tag=kotlin").body<MemoryListResponse>()
+        assertTrue(listed.memories.any { it.id == memory.id })
+        val listedExpired = client.get("/api/memory?workspaceId=default&sessionId=session-1&tag=expired").body<MemoryListResponse>()
+        assertFalse(listedExpired.memories.any { it.id == expiredMemory.id })
+
+        val search = client.post("/api/memory/search") {
+            contentType(ContentType.Application.Json)
+            setBody(
+                MemorySearchRequest(
+                    query = "Kotlin answers",
+                    workspaceId = "default",
+                    sessionId = "session-1",
+                    limit = 5,
+                ),
+            )
+        }.body<MemorySearchResponse>()
+        assertEquals(listOf(memory.id), search.results.map { it.record.id })
+        assertTrue(search.results.single().matchReason.contains("content"))
+
+        val deletedMemory = client.delete("/api/memory/${memory.id}?workspaceId=default&sessionId=session-1").body<DeleteResponse>()
+        assertTrue(deletedMemory.deleted)
+        val deletedPersona = client.delete("/api/personas/${persona.id}").body<DeleteResponse>()
+        assertTrue(deletedPersona.deleted)
+        val expired = client.post("/api/memory/expire").body<ExpireMemoryResponse>()
+        assertTrue(expired.expired >= 1)
+        val listedAfterExpire = client.get("/api/memory?workspaceId=default&sessionId=session-1&tag=expired").body<MemoryListResponse>()
+        assertFalse(listedAfterExpire.memories.any { it.id == expiredMemory.id })
+    }
+
+    @Test
     fun `sub-agent routes read replace config and test selected execution`() = testApplication {
         val service = testService(testProvider = ScriptedProvider(finalContent = "code agent reply"))
         application {
@@ -546,6 +816,8 @@ class DashboardRoutesTest {
         platforms: List<PlatformConfig> = emptyList(),
         testProvider: ScriptedProvider? = ScriptedProvider(),
         providerName: String = "test-provider",
+        echoToolDelayMs: Long = 0,
+        toolTimeoutSeconds: Long = 30,
     ): DashboardService {
         ProviderRegistry.unregister("test-provider")
         if (testProvider != null) {
@@ -570,6 +842,7 @@ class DashboardRoutesTest {
                     providerName = providerName,
                     model = "test-model",
                     maxSteps = 4,
+                    toolTimeoutSeconds = toolTimeoutSeconds,
                 ),
                 server = ServerConfig(enabled = true, port = 18080),
                 plugins = PluginConfig(directory = pluginDirectory ?: "plugins", autoDiscover = false),
@@ -579,10 +852,9 @@ class DashboardRoutesTest {
         val db = DatabaseController(dbPath.toString())
         val conversationCase = ConversationCase(ConversationController(db), MessageHistory(db))
         val knowledgeCase = KnowledgeCase(KnowledgeController(db))
-        val toolController = ToolController().also {
-            registerBuiltinTools(it, knowledgeCaseProvider = { knowledgeCase })
-            it.register(DashboardEchoTool())
-        }
+        val memoryCase = MemoryCase(MemoryController(db))
+        val personaCase = PersonaCase(PersonaController(db))
+        val toolController = ToolController()
         val contextManager = ContextManager(TokenCounter())
         val metricsRegistry = MetricsRegistry()
         val toolExecutor = ToolExecutor(toolController, metricsRegistry)
@@ -590,7 +862,7 @@ class DashboardRoutesTest {
         val providerCase = ProviderCase(providerController)
         val pluginRegistry = PluginExtensionRegistry()
         val pluginCase = PluginCase(
-            PluginManager(
+            PluginController(
                 configCase = configCase,
                 extensionRegistry = pluginRegistry,
                 toolController = toolController,
@@ -600,6 +872,22 @@ class DashboardRoutesTest {
         )
         val platformCase = PlatformCase(pipelineCaseProvider = { error("Pipeline is not used in route tests") })
         val platformController = PlatformController(configCase, platformCase)
+        val healthProvider = RuntimeHealthProvider(
+            configController = configController,
+            configCase = configCase,
+            platformController = platformController,
+            providerCase = providerCase,
+            toolController = toolController,
+            pluginCase = pluginCase,
+        )
+        registerBuiltinTools(
+            registry = toolController,
+            knowledgeCaseProvider = { knowledgeCase },
+            healthProvider = { healthProvider },
+            conversationCaseProvider = { conversationCase },
+            memoryCaseProvider = { memoryCase },
+        )
+        toolController.register(DashboardEchoTool(delayMs = echoToolDelayMs))
         val agentCase = AgentCase()
         val subAgentOrchestrator = SubAgentOrchestrator(
             agentCase = agentCase,
@@ -607,6 +895,12 @@ class DashboardRoutesTest {
             providerCase = providerCase,
             toolExecutor = toolExecutor,
             toolController = toolController,
+        )
+        val workspaceController = WorkspaceController(
+            source = ConfigBackedWorkspaceConfigSource(configCase),
+            toolController = toolController,
+            skillCase = SkillCase(SkillController()),
+            nowProvider = { 1_000L },
         )
 
         return DashboardService(
@@ -623,6 +917,11 @@ class DashboardRoutesTest {
             knowledgeCase = knowledgeCase,
             subAgentOrchestrator = subAgentOrchestrator,
             metricsRegistry = metricsRegistry,
+            healthProvider = healthProvider,
+            workspaceController = workspaceController,
+            personaCase = personaCase,
+            memoryCase = memoryCase,
+            personaMemoryInjector = PersonaMemoryInjector(personaCase, memoryCase),
         )
     }
 
@@ -660,10 +959,13 @@ class DashboardRoutesTest {
         override suspend fun getModels(): List<String> = listOf("test-model")
     }
 
-    private class DashboardEchoTool : FunctionTool() {
+    private class DashboardEchoTool(
+        private val delayMs: Long = 0,
+    ) : FunctionTool() {
         override val schema = ToolSchema("dashboard_echo", "Dashboard echo tool", ToolParameters())
 
         override suspend fun execute(context: AgentToolContext, args: Map<String, String>): ToolResult {
+            if (delayMs > 0) delay(delayMs)
             return ToolResult.success(args["text"] ?: "echo")
         }
     }
@@ -683,6 +985,24 @@ class DashboardRoutesTest {
         val field = DashboardService::class.java.getDeclaredField("conversationCase")
         field.isAccessible = true
         return field.get(this) as ConversationCase
+    }
+
+    private fun DashboardService.personaCaseForTest(): PersonaCase {
+        val field = DashboardService::class.java.getDeclaredField("personaCase")
+        field.isAccessible = true
+        return field.get(this) as PersonaCase
+    }
+
+    private fun DashboardService.memoryCaseForTest(): MemoryCase {
+        val field = DashboardService::class.java.getDeclaredField("memoryCase")
+        field.isAccessible = true
+        return field.get(this) as MemoryCase
+    }
+
+    private fun DashboardService.healthProviderForTest(): RuntimeHealthProvider {
+        val field = DashboardService::class.java.getDeclaredField("healthProvider")
+        field.isAccessible = true
+        return field.get(this) as RuntimeHealthProvider
     }
 
     private fun buildJavaPluginJar(pluginDir: File) {

@@ -9,12 +9,12 @@ import kotlinx.serialization.json.Json
 import java.io.File
 import java.net.URL
 
-class PluginManager(
+class PluginController(
     private val configCase: ConfigCase,
     private val extensionRegistry: PluginExtensionRegistry,
     private val toolController: ToolController,
     private val providerController: ProviderController,
-) : BaseController("PluginManager") {
+) : BaseController("PluginController") {
 
     private val json = Json {
         ignoreUnknownKeys = true

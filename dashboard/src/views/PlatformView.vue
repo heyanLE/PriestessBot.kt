@@ -7,18 +7,37 @@
       </div>
     </div>
     <EmptyState v-if="store.platforms.length === 0" title="No platforms configured" detail="Add platform config through the config view or config file." />
-    <div v-else class="grid list-grid">
-      <article v-for="platform in store.platforms" :key="platform.name" class="card">
-        <div class="section-title">
-          <h3>{{ platform.name }}</h3>
-          <StatusDot :label="platform.running ? 'Running' : platform.enabled ? 'Enabled' : 'Stopped'" :tone="platform.running ? 'ok' : platform.enabled ? 'warn' : 'muted'" />
-        </div>
-        <p>{{ platform.type }} at {{ platform.host }}:{{ platform.port }} / ws {{ platform.wsPort }}</p>
-        <div class="toolbar">
-          <button type="button" class="primary" :disabled="platform.enabled" @click="store.setPlatformEnabled(platform.name, true)">Start</button>
-          <button type="button" :disabled="!platform.enabled" @click="store.setPlatformEnabled(platform.name, false)">Stop</button>
-        </div>
-      </article>
+    <div v-else class="table-wrap">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Endpoint</th>
+            <th>State</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="platform in store.platforms" :key="platform.name">
+            <td><strong>{{ platform.name }}</strong></td>
+            <td>{{ platform.type }}</td>
+            <td>
+              <code>{{ platform.host }}:{{ platform.port }}</code>
+              <p class="muted">ws {{ platform.wsPort }}</p>
+            </td>
+            <td>
+              <StatusDot :label="platform.running ? 'Running' : platform.enabled ? 'Enabled' : 'Stopped'" :tone="platform.running ? 'ok' : platform.enabled ? 'warn' : 'muted'" />
+            </td>
+            <td>
+              <div class="toolbar">
+                <button type="button" class="primary" :disabled="platform.enabled" @click="store.setPlatformEnabled(platform.name, true)">Start</button>
+                <button type="button" :disabled="!platform.enabled" @click="store.setPlatformEnabled(platform.name, false)">Stop</button>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
     </div>
   </section>
 </template>

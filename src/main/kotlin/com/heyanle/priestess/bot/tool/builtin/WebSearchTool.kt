@@ -5,6 +5,8 @@ import com.heyanle.priestess.bot.tool.FunctionTool
 import com.heyanle.priestess.bot.tool.ParameterDef
 import com.heyanle.priestess.bot.tool.ToolParameters
 import com.heyanle.priestess.bot.tool.ToolResult
+import com.heyanle.priestess.bot.tool.ToolCapabilities
+import com.heyanle.priestess.bot.tool.ToolRiskLevel
 import com.heyanle.priestess.bot.tool.ToolSchema
 import com.heyanle.priestess.bot.tool.annotation.Tool
 import io.ktor.client.*
@@ -37,6 +39,10 @@ class WebSearchTool : FunctionTool() {
             ),
             required = listOf("query"),
         ),
+        riskLevel = ToolRiskLevel.EXTERNAL_READ,
+        requiredCapabilities = listOf(ToolCapabilities.NETWORK, ToolCapabilities.PROVIDER_SEARCH),
+        defaultEnabled = false,
+        auditLog = false,
     )
 
     private val client = HttpClient(CIO) {

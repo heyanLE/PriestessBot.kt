@@ -115,6 +115,8 @@ class SubAgentOrchestrator(
                     message = if (result.toolResult.success) result.toolResult.output else result.toolResult.error,
                     toolName = toolName,
                     success = result.toolResult.success,
+                    errorCode = result.toolResult.errorCode,
+                    policyDenialCode = result.toolResult.policyDenialCode?.name,
                 )
             }
 

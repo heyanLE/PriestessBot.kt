@@ -8,6 +8,8 @@ import com.heyanle.priestess.bot.platform.PlatformMetadata
 import com.heyanle.priestess.bot.platform.PlatformRegistry
 import com.heyanle.priestess.bot.tool.FunctionTool
 import com.heyanle.priestess.bot.tool.ToolController
+import com.heyanle.priestess.bot.tool.ToolMetadata
+import com.heyanle.priestess.bot.tool.ToolSource
 
 interface Plugin {
     fun onLoad(context: PluginContext) = Unit
@@ -59,7 +61,10 @@ class DefaultPluginContext(
     override fun registerTool(tool: FunctionTool) {
         val name = tool.schema.name
         toolController.unregister(name)
-        toolController.register(tool)
+        toolController.register(
+            tool = tool,
+            metadata = ToolMetadata(source = ToolSource.PLUGIN, owner = manifest.id),
+        )
         toolNames.add(name)
         registerExtension("tool", name, tool.schema.description)
     }

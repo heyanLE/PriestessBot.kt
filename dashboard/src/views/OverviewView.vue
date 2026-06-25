@@ -18,36 +18,65 @@
     </article>
   </div>
 
-  <section class="panel">
-    <div class="section-title">
-      <div>
-        <h2>Components</h2>
-        <p>Current backend health report.</p>
+  <div class="workbench-grid">
+    <section class="panel">
+      <div class="section-title">
+        <div>
+          <h2>Components</h2>
+          <p>{{ componentRows.length }} backend components reported.</p>
+        </div>
+        <span class="inline-status" :class="{ ok: store.health?.status === 'UP', warn: store.health?.status !== 'UP' }">
+          {{ store.health?.status ?? 'Unknown' }}
+        </span>
       </div>
-    </div>
-    <div class="grid list-grid">
-      <article v-for="(value, key) in store.health?.components" :key="key" class="card">
-        <h3>{{ key }}</h3>
-        <StatusDot :label="value" :tone="value === 'UP' ? 'ok' : 'muted'" />
-      </article>
-    </div>
-  </section>
 
-  <section class="panel">
-    <div class="section-title">
-      <div>
-        <h2>Diagnostics</h2>
-        <p>Runtime paths and extension counts.</p>
+      <EmptyState v-if="componentRows.length === 0" title="No component report" detail="Health snapshots appear after the local API responds." />
+      <div v-else class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Component</th>
+              <th>Status</th>
+              <th>Signal</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="row in componentRows" :key="row.name">
+              <td><strong>{{ row.name }}</strong></td>
+              <td>
+                <StatusDot :label="row.status" :tone="row.status === 'UP' ? 'ok' : 'muted'" />
+              </td>
+              <td>{{ row.status === 'UP' ? 'Healthy' : 'Needs attention' }}</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
-      <span>{{ formatDuration(store.health?.uptimeMillis ?? 0) }}</span>
-    </div>
-    <div class="grid list-grid">
-      <article v-for="(value, key) in store.health?.diagnostics" :key="key" class="card">
-        <h3>{{ formatKey(String(key)) }}</h3>
-        <p class="diagnostic-value">{{ value }}</p>
-      </article>
-    </div>
-  </section>
+    </section>
+
+    <aside class="panel detail-panel">
+      <div class="section-title">
+        <div>
+          <h2>Runtime Detail</h2>
+          <p>{{ formatDuration(store.health?.uptimeMillis ?? 0) }} uptime.</p>
+        </div>
+      </div>
+
+      <div class="detail-list">
+        <div v-for="(value, key) in store.health?.diagnostics" :key="key" class="detail-item">
+          <span>{{ formatKey(String(key)) }}</span>
+          <code>{{ value }}</code>
+        </div>
+        <div class="detail-item">
+          <span>Conversations</span>
+          <strong>{{ store.conversations.length }}</strong>
+        </div>
+        <div class="detail-item">
+          <span>Workspaces</span>
+          <strong>{{ store.workspaces.workspaces.length }}</strong>
+        </div>
+      </div>
+    </aside>
+  </div>
 
   <section class="panel">
     <div class="section-title">
@@ -55,29 +84,32 @@
         <h2>Recent Conversations</h2>
         <p>{{ store.conversations.length }} tracked sessions.</p>
       </div>
-      <RouterLink to="/conversations">Open</RouterLink>
+      <RouterLink class="button-link" to="/conversations">Open</RouterLink>
     </div>
     <EmptyState v-if="store.conversations.length === 0" title="No conversations yet" detail="Messages will appear after a platform starts receiving traffic." />
-    <table v-else class="table">
-      <thead>
-        <tr>
-          <th>Platform</th>
-          <th>Session</th>
-          <th>Updated</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="conversation in store.conversations.slice(0, 5)" :key="conversation.id">
-          <td>{{ conversation.platform }}</td>
-          <td>{{ conversation.sessionId }}</td>
-          <td>{{ formatTime(conversation.updatedAt) }}</td>
-        </tr>
-      </tbody>
-    </table>
+    <div v-else class="table-wrap">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Platform</th>
+            <th>Session</th>
+            <th>Updated</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="conversation in store.conversations.slice(0, 6)" :key="conversation.id">
+            <td>{{ conversation.platform }}</td>
+            <td><code>{{ conversation.sessionId }}</code></td>
+            <td>{{ formatTime(conversation.updatedAt) }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
   </section>
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue';
 import { RouterLink } from 'vue-router';
 import EmptyState from '../components/EmptyState.vue';
 import StatusDot from '../components/StatusDot.vue';
@@ -85,8 +117,12 @@ import { useDashboardStore } from '../stores/dashboard';
 
 const store = useDashboardStore();
 
+const componentRows = computed(() =>
+  Object.entries(store.health?.components ?? {}).map(([name, status]) => ({ name, status })),
+);
+
 function formatTime(value: number) {
-  return new Intl.DateTimeFormat('en-US', { month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit' }).format(value);
+  return new Intl.DateTimeFormat(undefined, { month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit' }).format(value);
 }
 
 function formatKey(value: string) {
@@ -103,11 +139,3 @@ function formatDuration(value: number) {
   return `${seconds}s`;
 }
 </script>
-
-<style scoped>
-.diagnostic-value {
-  color: var(--muted);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  overflow-wrap: anywhere;
-}
-</style>

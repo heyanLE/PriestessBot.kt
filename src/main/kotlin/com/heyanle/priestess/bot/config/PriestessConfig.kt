@@ -1,5 +1,6 @@
 package com.heyanle.priestess.bot.config
 
+import com.heyanle.priestess.bot.workspace.WorkspaceConfig
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -12,4 +13,5 @@ data class PriestessConfig(
     val server: ServerConfig = ServerConfig(),
     val plugins: PluginConfig = PluginConfig(),
     val subAgents: SubAgentOrchestrationConfig = SubAgentOrchestrationConfig(),
+    val workspaces: List<WorkspaceConfig> = emptyList(),
 )

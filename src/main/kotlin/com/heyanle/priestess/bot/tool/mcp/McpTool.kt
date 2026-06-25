@@ -5,6 +5,8 @@ import com.heyanle.priestess.bot.tool.FunctionTool
 import com.heyanle.priestess.bot.tool.ParameterDef
 import com.heyanle.priestess.bot.tool.ToolParameters
 import com.heyanle.priestess.bot.tool.ToolResult
+import com.heyanle.priestess.bot.tool.ToolCapabilities
+import com.heyanle.priestess.bot.tool.ToolRiskLevel
 import com.heyanle.priestess.bot.tool.ToolSchema
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
@@ -55,6 +57,10 @@ class McpTool(
             name = toolDef.name,
             description = toolDef.description,
             parameters = parameters,
+            riskLevel = ToolRiskLevel.SAFE_READ,
+            requiredCapabilities = listOf(ToolCapabilities.MCP),
+            defaultEnabled = false,
+            auditLog = true,
         )
     }
 

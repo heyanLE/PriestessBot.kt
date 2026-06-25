@@ -5,6 +5,8 @@ import ProviderView from '../views/ProviderView.vue';
 import AgentView from '../views/AgentView.vue';
 import SubAgentView from '../views/SubAgentView.vue';
 import ToolView from '../views/ToolView.vue';
+import WorkspaceView from '../views/WorkspaceView.vue';
+import PersonaMemoryView from '../views/PersonaMemoryView.vue';
 import KnowledgeView from '../views/KnowledgeView.vue';
 import ConversationView from '../views/ConversationView.vue';
 import ConversationDetailView from '../views/ConversationDetailView.vue';
@@ -19,6 +21,8 @@ export const routes: RouteRecordRaw[] = [
   { path: '/agent', name: 'agent', component: AgentView, meta: { label: 'Agent' } },
   { path: '/sub-agents', name: 'sub-agents', component: SubAgentView, meta: { label: 'Sub-Agents' } },
   { path: '/tools', name: 'tools', component: ToolView, meta: { label: 'Tools' } },
+  { path: '/workspaces', name: 'workspaces', component: WorkspaceView, meta: { label: 'Workspaces' } },
+  { path: '/persona-memory', name: 'persona-memory', component: PersonaMemoryView, meta: { label: 'Persona & Memory' } },
   { path: '/knowledge', name: 'knowledge', component: KnowledgeView, meta: { label: 'Knowledge' } },
   { path: '/conversations', name: 'conversations', component: ConversationView, meta: { label: 'Conversations' } },
   { path: '/conversations/:id', name: 'conversation-detail', component: ConversationDetailView, meta: { label: 'Conversation', nav: false } },

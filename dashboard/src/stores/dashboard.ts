@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
-import { dashboardApi, type ConfigBackup, type ConversationDto, type HealthResponse, type PlatformStatusDto, type PluginListResponse, type PriestessConfig, type ProviderDto, type ToolDto } from '../api/dashboard';
+import { dashboardApi, type ConfigBackup, type ConversationDto, type HealthResponse, type PlatformStatusDto, type PluginListResponse, type PriestessConfig, type ProviderDto, type ToolDto, type WorkspaceListResponse, type WorkspaceReloadResult } from '../api/dashboard';
 
 export const useDashboardStore = defineStore('dashboard', () => {
   const health = ref<HealthResponse | null>(null);
@@ -10,6 +10,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
   const providers = ref<ProviderDto[]>([]);
   const providerTests = ref<Record<string, boolean>>({});
   const tools = ref<ToolDto[]>([]);
+  const workspaces = ref<WorkspaceListResponse>({ workspaces: [] });
   const conversations = ref<ConversationDto[]>([]);
   const plugins = ref<PluginListResponse>({ plugins: [], extensions: [] });
   const loading = ref(false);
@@ -24,13 +25,14 @@ export const useDashboardStore = defineStore('dashboard', () => {
     loading.value = true;
     error.value = null;
     try {
-      const [nextHealth, nextConfig, nextBackups, nextPlatforms, nextProviders, nextTools, nextConversations, nextPlugins] = await Promise.all([
+      const [nextHealth, nextConfig, nextBackups, nextPlatforms, nextProviders, nextTools, nextWorkspaces, nextConversations, nextPlugins] = await Promise.all([
         dashboardApi.health(),
         dashboardApi.config(),
         dashboardApi.configBackups(),
         dashboardApi.platforms(),
         dashboardApi.providers(),
         dashboardApi.tools(),
+        dashboardApi.workspaces(),
         dashboardApi.conversations(),
         dashboardApi.plugins(),
       ]);
@@ -40,6 +42,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
       platforms.value = nextPlatforms;
       providers.value = nextProviders;
       tools.value = nextTools;
+      workspaces.value = nextWorkspaces;
       conversations.value = nextConversations;
       plugins.value = nextPlugins;
       lastUpdated.value = Date.now();
@@ -57,6 +60,22 @@ export const useDashboardStore = defineStore('dashboard', () => {
 
   async function testProviders() {
     providerTests.value = await dashboardApi.testProviders();
+  }
+
+  async function loadWorkspaces() {
+    workspaces.value = await dashboardApi.workspaces();
+  }
+
+  async function reloadWorkspace(id: string): Promise<WorkspaceReloadResult> {
+    const result = await dashboardApi.reloadWorkspace(id);
+    await loadWorkspaces();
+    return result;
+  }
+
+  async function reloadWorkspaces(): Promise<WorkspaceReloadResult[]> {
+    const result = await dashboardApi.reloadWorkspaces();
+    await loadWorkspaces();
+    return result;
   }
 
   async function discoverPlugins() {
@@ -95,6 +114,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
     providers,
     providerTests,
     tools,
+    workspaces,
     conversations,
     plugins,
     loading,
@@ -106,6 +126,9 @@ export const useDashboardStore = defineStore('dashboard', () => {
     refreshAll,
     setPlatformEnabled,
     testProviders,
+    loadWorkspaces,
+    reloadWorkspace,
+    reloadWorkspaces,
     discoverPlugins,
     setPluginState,
     saveConfig,

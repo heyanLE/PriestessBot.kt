@@ -22,7 +22,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
-class PluginManagerTest {
+class PluginControllerTest {
     @Test
     fun `discovers plugin manifest and transitions lifecycle`() {
         val root = Files.createTempDirectory("priestess-plugins")
@@ -45,7 +45,7 @@ class PluginManagerTest {
             PriestessConfig(plugins = PluginConfig(directory = root.toString(), autoDiscover = false)),
         )
         val configCase = ConfigCase(controller)
-        val manager = PluginManager(
+        val manager = PluginController(
             configCase = configCase,
             extensionRegistry = PluginExtensionRegistry(),
             toolController = ToolController(),
@@ -156,7 +156,7 @@ class PluginManagerTest {
         pluginDir: String,
         registry: PluginExtensionRegistry,
         toolController: ToolController,
-    ): Pair<PluginManager, ProviderController> {
+    ): Pair<PluginController, ProviderController> {
         val configPath = Files.createTempDirectory("priestess-plugin-config").resolve("config.json")
         val controller = ConfigController(configPath.toString())
         controller.replace(
@@ -164,7 +164,7 @@ class PluginManagerTest {
         )
         val configCase = ConfigCase(controller)
         val providerController = ProviderController(configCase)
-        return PluginManager(
+        return PluginController(
             configCase = configCase,
             extensionRegistry = registry,
             toolController = toolController,

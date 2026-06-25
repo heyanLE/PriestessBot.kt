@@ -4,6 +4,7 @@ import com.heyanle.priestess.bot.tool.AgentToolContext
 import com.heyanle.priestess.bot.tool.FunctionTool
 import com.heyanle.priestess.bot.tool.ToolParameters
 import com.heyanle.priestess.bot.tool.ToolResult
+import com.heyanle.priestess.bot.tool.ToolRiskLevel
 import com.heyanle.priestess.bot.tool.ToolSchema
 import com.heyanle.priestess.bot.tool.annotation.Tool
 
@@ -19,6 +20,9 @@ class SystemInfoTool(
         name = "system_info",
         description = "Get information about the current system status, agent, model, available tools, and runtime metrics.",
         parameters = ToolParameters(properties = emptyList(), required = emptyList()),
+        riskLevel = ToolRiskLevel.SAFE_READ,
+        defaultEnabled = true,
+        auditLog = false,
     )
 
     override suspend fun execute(context: AgentToolContext, args: Map<String, String>): ToolResult {

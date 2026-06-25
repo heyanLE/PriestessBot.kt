@@ -2,6 +2,7 @@ package com.heyanle.priestess.bot.tool
 
 import com.heyanle.priestess.bot.platform.MessageSession
 import com.heyanle.priestess.bot.platform.Platform
+import com.heyanle.priestess.bot.skill.PipelineSkillState
 
 /**
  * Context passed to tool execution.
@@ -35,4 +36,16 @@ data class AgentToolContext(
      * Additional metadata that tools might need.
      */
     val metadata: Map<String, String> = emptyMap(),
+
+    /**
+     * Workspace-pinned tools for this agent run. These are resolved from the
+     * immutable workspace snapshot and are not registered globally.
+     */
+    val scopedTools: List<FunctionTool> = emptyList(),
+
+    /**
+     * Mutable per-agent-run skill loading state. Tools such as use_skill update
+     * this state so later LLM turns include the loaded SKILL.md prompt block.
+     */
+    val skillState: PipelineSkillState = PipelineSkillState(),
 )

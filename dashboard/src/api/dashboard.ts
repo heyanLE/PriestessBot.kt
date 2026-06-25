@@ -62,11 +62,69 @@ export interface PriestessConfig {
   platforms: PlatformConfig[];
   providers: ProviderConfig[];
   agent: AgentConfig;
+  workspaces?: WorkspaceConfig[];
   subAgents: SubAgentOrchestrationConfig;
   database: { path: string };
   pipeline: Record<string, unknown>;
   server: ServerConfig;
   plugins: PluginConfig;
+}
+
+export interface WorkspaceSkillConfig {
+  name: string;
+  enabled: boolean;
+  settings: Record<string, string>;
+}
+
+export interface WorkspaceMcpServerConfig {
+  id: string;
+  enabled: boolean;
+  transport: string;
+  command: string;
+  args: string[];
+  url: string;
+  env: Record<string, string>;
+}
+
+export interface WorkspaceToolConfig {
+  enabledTools: string[];
+  disabledTools: string[];
+  allowedRiskLevels: ToolDto['riskLevel'][];
+}
+
+export interface WorkspacePersonaConfig {
+  id: string;
+  enabled: boolean;
+  agentNames: string[];
+}
+
+export interface WorkspaceMemoryPolicyConfig {
+  enabled: boolean;
+  allowedScopes: string[];
+  knowledgeBaseIds: string[];
+  maxInjectedMemories: number;
+}
+
+export interface WorkspaceResolutionConfig {
+  platformNames: string[];
+  sessionIds: string[];
+  userIds: string[];
+}
+
+export interface WorkspaceConfig {
+  id: string;
+  name: string;
+  enabled: boolean;
+  isDefault: boolean;
+  agents: AgentConfig[];
+  providerName: string;
+  skills: WorkspaceSkillConfig[];
+  mcpServers: WorkspaceMcpServerConfig[];
+  tools: WorkspaceToolConfig;
+  personas: WorkspacePersonaConfig[];
+  memory: WorkspaceMemoryPolicyConfig;
+  subAgents: SubAgentOrchestrationConfig;
+  resolution: WorkspaceResolutionConfig;
 }
 
 export interface ConfigBackup {
@@ -124,6 +182,14 @@ export interface ToolDto {
     properties: Record<string, unknown>;
     required: string[];
   };
+  source: 'BUILTIN' | 'PLUGIN' | 'MCP';
+  owner?: string;
+  riskLevel: 'SAFE_READ' | 'SESSION_ACTION' | 'EXTERNAL_READ' | 'STATE_WRITE' | 'HIGH_RISK';
+  requiredCapabilities: string[];
+  defaultEnabled: boolean;
+  effectiveEnabled: boolean;
+  auditLog: boolean;
+  statusReason?: string;
 }
 
 export interface ConversationDto {
@@ -179,6 +245,10 @@ export interface AgentChatRequest {
   message: string;
   config?: AgentConfig;
   conversationId?: string;
+  workspaceId?: string;
+  platformId?: string;
+  sessionId?: string;
+  userId?: string;
 }
 
 export interface AgentChatEventDto {
@@ -186,6 +256,8 @@ export interface AgentChatEventDto {
   message: string;
   toolName?: string;
   success?: boolean;
+  errorCode?: string;
+  policyDenialCode?: string;
   timestamp: number;
 }
 
@@ -196,6 +268,24 @@ export interface AgentChatResponse {
   providerName: string;
   model: string;
   conversationId: string;
+  injectionTrace: AgentChatInjectionTraceDto;
+}
+
+export interface AgentChatInjectionTraceDto {
+  workspaceId: string;
+  personaId?: string;
+  personaName?: string;
+  memoryCount: number;
+  memories: AgentChatInjectedMemoryDto[];
+  metadata: Record<string, string>;
+}
+
+export interface AgentChatInjectedMemoryDto {
+  id: string;
+  type: MemoryType;
+  score: number;
+  matchReason: string;
+  contentPreview: string;
 }
 
 export interface SubAgentTestRequest {
@@ -255,6 +345,176 @@ export interface KnowledgeSearchResultDto {
   score: number;
 }
 
+export interface WorkspaceReloadPlan {
+  workspaceId: string;
+  oldVersion?: number;
+  newVersion: number;
+  added: string[];
+  removed: string[];
+  modified: string[];
+}
+
+export interface WorkspaceReloadResult {
+  workspaceId: string;
+  success: boolean;
+  status: string;
+  snapshotVersion?: number;
+  timestamp: number;
+  plan?: WorkspaceReloadPlan;
+  diagnostics: string[];
+  errorSummary?: string;
+}
+
+export interface WorkspaceStatusDto {
+  id: string;
+  name: string;
+  enabled: boolean;
+  activeSnapshotVersion?: number;
+  loadedAt?: number;
+  lastReload?: WorkspaceReloadResult;
+  diagnostics: string[];
+}
+
+export interface WorkspaceListResponse {
+  workspaces: WorkspaceStatusDto[];
+}
+
+export interface WorkspaceDetailDto {
+  status: WorkspaceStatusDto;
+  providerName: string;
+  agents: string[];
+  tools: string[];
+  skills: string[];
+  skillSettings: Record<string, Record<string, string>>;
+  mcpServers: string[];
+  mcpServerDetails: WorkspaceMcpServerSummaryDto[];
+  personas: string[];
+  memory: WorkspaceMemoryPolicyConfig;
+  reloadPlan?: WorkspaceReloadPlan;
+}
+
+export interface WorkspaceMcpServerSummaryDto {
+  id: string;
+  transport: string;
+  command: string;
+  args: string[];
+  url: string;
+}
+
+export interface WorkspaceResourceListResponse {
+  workspaceId: string;
+  resources: string[];
+}
+
+export interface Persona {
+  id: string;
+  workspaceId: string;
+  name: string;
+  description: string;
+  tone: string;
+  boundaries: string[];
+  systemPromptTemplate: string;
+  enabled: boolean;
+  agentNames: string[];
+  createdAt: number;
+  updatedAt: number;
+  deletedAt?: number;
+}
+
+export interface PersonaListResponse {
+  personas: Persona[];
+}
+
+export interface PersonaUpsertDto {
+  id?: string;
+  workspaceId: string;
+  name: string;
+  description: string;
+  tone: string;
+  boundaries: string[];
+  systemPromptTemplate: string;
+  enabled: boolean;
+  agentNames: string[];
+}
+
+export interface PersonaResolveRequest {
+  workspaceId: string;
+  agentName: string;
+}
+
+export interface PersonaResolveResponse {
+  persona?: Persona;
+}
+
+export type MemoryScope = 'GLOBAL' | 'PLATFORM' | 'SESSION' | 'USER' | 'AGENT';
+export type MemoryType = 'FACT' | 'PREFERENCE' | 'EVENT' | 'SUMMARY';
+
+export interface MemoryRecord {
+  id: string;
+  workspaceId: string;
+  scope: MemoryScope;
+  platformId?: string;
+  sessionId?: string;
+  userId?: string;
+  agentName?: string;
+  type: MemoryType;
+  content: string;
+  tags: string[];
+  confidence: number;
+  createdAt: number;
+  updatedAt: number;
+  expiresAt?: number;
+  deletedAt?: number;
+}
+
+export interface MemoryListResponse {
+  memories: MemoryRecord[];
+}
+
+export interface MemorySaveRequest {
+  content: string;
+  type: MemoryType;
+  scope: MemoryScope;
+  workspaceId: string;
+  platformId?: string;
+  sessionId?: string;
+  userId?: string;
+  agentName?: string;
+  tags: string[];
+  confidence: number;
+  expiresAt?: number;
+}
+
+export interface MemorySearchRequest {
+  query: string;
+  workspaceId: string;
+  platformId?: string;
+  sessionId?: string;
+  userId?: string;
+  agentName?: string;
+  scope?: MemoryScope;
+  type?: MemoryType;
+  limit: number;
+}
+
+export interface MemorySearchResult {
+  record: MemoryRecord;
+  score: number;
+  matchReason: string;
+}
+
+export interface MemorySearchResponse {
+  results: MemorySearchResult[];
+}
+
+export interface DeleteResponse {
+  deleted: boolean;
+}
+
+export interface ExpireMemoryResponse {
+  expired: number;
+}
+
 const dashboardTokenKey = 'priestess.dashboardToken';
 
 export function dashboardApiToken(): string {
@@ -283,6 +543,15 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>;
 }
 
+function queryString(values: Record<string, string | number | undefined>) {
+  const params = new URLSearchParams();
+  Object.entries(values).forEach(([key, value]) => {
+    if (value !== undefined && String(value).trim().length > 0) params.set(key, String(value));
+  });
+  const serialized = params.toString();
+  return serialized.length > 0 ? `?${serialized}` : '';
+}
+
 export const dashboardApi = {
   health: () => request<HealthResponse>('/health'),
   config: () => request<PriestessConfig>('/api/config'),
@@ -301,6 +570,80 @@ export const dashboardApi = {
   providers: () => request<ProviderDto[]>('/api/providers'),
   testProviders: () => request<Record<string, boolean>>('/api/providers/test', { method: 'POST' }),
   tools: () => request<ToolDto[]>('/api/tools'),
+  workspaces: () => request<WorkspaceListResponse>('/api/workspaces'),
+  workspaceDetail: (id: string) => request<WorkspaceDetailDto>(`/api/workspaces/${encodeURIComponent(id)}`),
+  reloadWorkspace: (id: string) =>
+    request<WorkspaceReloadResult>(`/api/workspaces/${encodeURIComponent(id)}/reload`, { method: 'POST' }),
+  reloadWorkspaces: () => request<WorkspaceReloadResult[]>('/api/workspaces/reload', { method: 'POST' }),
+  workspaceTools: (id: string) => request<WorkspaceResourceListResponse>(`/api/workspaces/${encodeURIComponent(id)}/tools`),
+  workspaceMcp: (id: string) => request<WorkspaceResourceListResponse>(`/api/workspaces/${encodeURIComponent(id)}/mcp`),
+  workspaceSkills: (id: string) => request<WorkspaceResourceListResponse>(`/api/workspaces/${encodeURIComponent(id)}/skills`),
+  workspacePersonas: (id: string) => request<WorkspaceResourceListResponse>(`/api/workspaces/${encodeURIComponent(id)}/personas`),
+  workspaceMemory: (id: string) => request<WorkspaceMemoryPolicyConfig>(`/api/workspaces/${encodeURIComponent(id)}/memory`),
+  personas: (workspaceId = 'default') => request<PersonaListResponse>(`/api/personas${queryString({ workspaceId })}`),
+  savePersona: (body: PersonaUpsertDto) =>
+    request<Persona>('/api/personas', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  updatePersona: (id: string, body: PersonaUpsertDto) =>
+    request<Persona>(`/api/personas/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    }),
+  deletePersona: (id: string) => request<DeleteResponse>(`/api/personas/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  resolvePersona: (body: PersonaResolveRequest) =>
+    request<PersonaResolveResponse>('/api/personas/resolve', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  memories: (params: {
+    workspaceId?: string;
+    platformId?: string;
+    sessionId?: string;
+    userId?: string;
+    agentName?: string;
+    type?: MemoryType | 'all';
+    tag?: string;
+    limit?: number;
+  } = {}) =>
+    request<MemoryListResponse>(
+      `/api/memory${queryString({
+        workspaceId: params.workspaceId ?? 'default',
+        platformId: params.platformId,
+        sessionId: params.sessionId,
+        userId: params.userId,
+        agentName: params.agentName,
+        type: params.type === 'all' ? undefined : params.type,
+        tag: params.tag,
+        limit: params.limit ?? 50,
+      })}`,
+    ),
+  saveMemory: (body: MemorySaveRequest) =>
+    request<MemoryRecord>('/api/memory', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  searchMemory: (body: MemorySearchRequest) =>
+    request<MemorySearchResponse>('/api/memory/search', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  deleteMemory: (
+    id: string,
+    params: { workspaceId?: string; platformId?: string; sessionId?: string; userId?: string; agentName?: string } = {},
+  ) =>
+    request<DeleteResponse>(
+      `/api/memory/${encodeURIComponent(id)}${queryString({
+        workspaceId: params.workspaceId ?? 'default',
+        platformId: params.platformId,
+        sessionId: params.sessionId,
+        userId: params.userId,
+        agentName: params.agentName,
+      })}`,
+      { method: 'DELETE' },
+    ),
+  expireMemory: () => request<ExpireMemoryResponse>('/api/memory/expire', { method: 'POST' }),
   chatAgent: (body: AgentChatRequest) =>
     request<AgentChatResponse>('/api/agent/chat', {
       method: 'POST',

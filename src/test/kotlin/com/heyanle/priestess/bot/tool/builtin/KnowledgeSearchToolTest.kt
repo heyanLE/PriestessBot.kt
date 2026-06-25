@@ -1,12 +1,11 @@
 package com.heyanle.priestess.bot.tool.builtin
 
-import com.heyanle.priestess.bot.core.db.DatabaseController
-import com.heyanle.priestess.bot.knowledge.KnowledgeCase
-import com.heyanle.priestess.bot.knowledge.KnowledgeController
 import com.heyanle.priestess.bot.tool.AgentToolContext
-import java.nio.file.Files
+import com.heyanle.priestess.bot.testkit.testKnowledgeCase
 import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class KnowledgeSearchToolTest {
@@ -36,9 +35,25 @@ class KnowledgeSearchToolTest {
         assertTrue(result.output.contains("No knowledge results"))
     }
 
-    private fun testKnowledgeCase(): KnowledgeCase {
-        val dbPath = Files.createTempFile("priestess-knowledge-tool", ".sqlite")
-        val db = DatabaseController(dbPath.toString())
-        return KnowledgeCase(KnowledgeController(db))
+    @Test
+    fun `workspace memory policy restricts knowledge base access`() = runBlocking {
+        val knowledge = testKnowledgeCase()
+        val allowed = knowledge.createBase("Allowed")
+        val denied = knowledge.createBase("Denied")
+        knowledge.addTextDocument(allowed.id, "allowed.md", "alpha allowed workspace content")
+        knowledge.addTextDocument(denied.id, "denied.md", "alpha denied workspace content")
+        val tool = KnowledgeSearchTool { knowledge }
+        val context = AgentToolContext(
+            metadata = mapOf("workspace_memory_knowledge_base_ids" to allowed.id),
+        )
+
+        val scoped = tool.execute(context, mapOf("query" to "alpha"))
+        assertTrue(scoped.success)
+        assertTrue(scoped.output.contains("allowed.md"))
+        assertFalse(scoped.output.contains("denied.md"))
+
+        val rejected = tool.execute(context, mapOf("query" to "alpha", "knowledgeBaseId" to denied.id))
+        assertFalse(rejected.success)
+        assertEquals("WORKSPACE_KNOWLEDGE_BASE_DENIED", rejected.errorCode)
     }
 }

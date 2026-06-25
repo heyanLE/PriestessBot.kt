@@ -1,0 +1,152 @@
+package com.heyanle.priestess.bot.persona
+
+import com.heyanle.priestess.bot.core.db.DatabaseController
+import com.heyanle.priestess.bot.core.db.PersonasTable
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+import org.jetbrains.exposed.sql.ResultRow
+import org.jetbrains.exposed.sql.SortOrder
+import org.jetbrains.exposed.sql.and
+import org.jetbrains.exposed.sql.insert
+import org.jetbrains.exposed.sql.selectAll
+import org.jetbrains.exposed.sql.update
+import java.util.UUID
+
+class PersonaController(
+    private val db: DatabaseController,
+) {
+    private val json = Json {
+        ignoreUnknownKeys = true
+        encodeDefaults = true
+    }
+
+    fun list(workspaceId: String): List<Persona> {
+        require(workspaceId.isNotBlank()) { "Workspace id must not be blank" }
+        return db.execute {
+            PersonasTable.selectAll()
+                .where { PersonasTable.workspaceId eq workspaceId }
+                .orderBy(PersonasTable.updatedAt, SortOrder.DESC)
+                .map { it.toPersona() }
+                .filter { it.deletedAt == null }
+        }
+    }
+
+    fun get(id: String): Persona? {
+        require(id.isNotBlank()) { "Persona id must not be blank" }
+        return db.execute {
+            PersonasTable.selectAll()
+                .where { PersonasTable.id eq id }
+                .limit(1)
+                .firstOrNull()
+                ?.toPersona()
+                ?.takeIf { it.deletedAt == null }
+        }
+    }
+
+    fun upsert(request: PersonaUpsertRequest): Persona {
+        val workspaceId = request.workspaceId.trim()
+        val name = request.name.trim()
+        require(workspaceId.isNotBlank()) { "Workspace id must not be blank" }
+        require(name.isNotBlank()) { "Persona name must not be blank" }
+        val id = request.id?.trim()?.takeIf { it.isNotBlank() } ?: UUID.randomUUID().toString()
+        val normalizedBoundaries = request.boundaries.map { it.trim() }.filter { it.isNotBlank() }.distinct()
+        val normalizedAgentNames = request.agentNames.map { it.trim() }.filter { it.isNotBlank() }.distinct()
+        val now = System.currentTimeMillis()
+
+        return db.execute {
+            val existing = PersonasTable.selectAll()
+                .where { PersonasTable.id eq id }
+                .limit(1)
+                .firstOrNull()
+                ?.toPersona()
+            val createdAt = existing?.createdAt ?: now
+            val persona = Persona(
+                id = id,
+                workspaceId = workspaceId,
+                name = name,
+                description = request.description.trim(),
+                tone = request.tone.trim(),
+                boundaries = normalizedBoundaries,
+                systemPromptTemplate = request.systemPromptTemplate.trim(),
+                enabled = request.enabled,
+                agentNames = normalizedAgentNames,
+                createdAt = createdAt,
+                updatedAt = now,
+            )
+            if (existing == null) {
+                PersonasTable.insert {
+                    it[PersonasTable.id] = persona.id
+                    it[PersonasTable.workspaceId] = persona.workspaceId
+                    it[PersonasTable.name] = persona.name
+                    it[description] = persona.description
+                    it[tone] = persona.tone
+                    it[boundaries] = json.encodeToString(persona.boundaries)
+                    it[systemPromptTemplate] = persona.systemPromptTemplate
+                    it[enabled] = persona.enabled
+                    it[agentNames] = json.encodeToString(persona.agentNames)
+                    it[PersonasTable.createdAt] = persona.createdAt
+                    it[updatedAt] = persona.updatedAt
+                    it[deletedAt] = persona.deletedAt
+                }
+            } else {
+                PersonasTable.update({ PersonasTable.id eq id }) {
+                    it[PersonasTable.workspaceId] = persona.workspaceId
+                    it[PersonasTable.name] = persona.name
+                    it[description] = persona.description
+                    it[tone] = persona.tone
+                    it[boundaries] = json.encodeToString(persona.boundaries)
+                    it[systemPromptTemplate] = persona.systemPromptTemplate
+                    it[enabled] = persona.enabled
+                    it[agentNames] = json.encodeToString(persona.agentNames)
+                    it[updatedAt] = persona.updatedAt
+                    it[deletedAt] = null
+                }
+            }
+            persona
+        }
+    }
+
+    fun delete(id: String): Boolean {
+        require(id.isNotBlank()) { "Persona id must not be blank" }
+        val now = System.currentTimeMillis()
+        return db.execute {
+            PersonasTable.update({
+                (PersonasTable.id eq id) and PersonasTable.deletedAt.isNull()
+            }) {
+                it[updatedAt] = now
+                it[deletedAt] = now
+            } > 0
+        }
+    }
+
+    fun resolve(workspaceId: String, agentName: String): Persona? {
+        require(workspaceId.isNotBlank()) { "Workspace id must not be blank" }
+        val normalizedAgentName = agentName.trim()
+        return list(workspaceId)
+            .asSequence()
+            .filter { it.enabled }
+            .filter { it.agentNames.isEmpty() || normalizedAgentName in it.agentNames }
+            .sortedWith(
+                compareByDescending<Persona> { normalizedAgentName in it.agentNames }
+                    .thenByDescending { it.updatedAt },
+            )
+            .firstOrNull()
+    }
+
+    private fun ResultRow.toPersona(): Persona {
+        return Persona(
+            id = this[PersonasTable.id],
+            workspaceId = this[PersonasTable.workspaceId],
+            name = this[PersonasTable.name],
+            description = this[PersonasTable.description],
+            tone = this[PersonasTable.tone],
+            boundaries = json.decodeFromString(this[PersonasTable.boundaries]),
+            systemPromptTemplate = this[PersonasTable.systemPromptTemplate],
+            enabled = this[PersonasTable.enabled],
+            agentNames = json.decodeFromString(this[PersonasTable.agentNames]),
+            createdAt = this[PersonasTable.createdAt],
+            updatedAt = this[PersonasTable.updatedAt],
+            deletedAt = this[PersonasTable.deletedAt],
+        )
+    }
+}

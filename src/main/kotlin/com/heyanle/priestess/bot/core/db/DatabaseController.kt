@@ -6,6 +6,8 @@ import org.jetbrains.exposed.sql.SchemaUtils
 import org.jetbrains.exposed.sql.Table
 import org.jetbrains.exposed.sql.transactions.TransactionManager
 import org.jetbrains.exposed.sql.transactions.transaction
+import java.sql.Connection
+import java.sql.DriverManager
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
@@ -51,6 +53,63 @@ object KnowledgeChunksTable : Table("knowledge_chunks") {
     override val primaryKey = PrimaryKey(id)
 }
 
+object MemoryRecordsTable : Table("memory_records") {
+    val id = varchar("id", 64)
+    val workspaceId = varchar("workspace_id", 128)
+    val scope = varchar("scope", 32)
+    val platformId = varchar("platform_id", 128).nullable()
+    val sessionId = varchar("session_id", 128).nullable()
+    val userId = varchar("user_id", 128).nullable()
+    val agentName = varchar("agent_name", 128).nullable()
+    val type = varchar("type", 32)
+    val content = text("content")
+    val tags = text("tags")
+    val confidence = double("confidence")
+    val createdAt = long("created_at")
+    val updatedAt = long("updated_at")
+    val expiresAt = long("expires_at").nullable()
+    val deletedAt = long("deleted_at").nullable()
+
+    override val primaryKey = PrimaryKey(id)
+}
+
+object PersonasTable : Table("personas") {
+    val id = varchar("id", 64)
+    val workspaceId = varchar("workspace_id", 128)
+    val name = varchar("name", 128)
+    val description = text("description")
+    val tone = text("tone")
+    val boundaries = text("boundaries")
+    val systemPromptTemplate = text("system_prompt_template")
+    val enabled = bool("enabled")
+    val agentNames = text("agent_names")
+    val createdAt = long("created_at")
+    val updatedAt = long("updated_at")
+    val deletedAt = long("deleted_at").nullable()
+
+    override val primaryKey = PrimaryKey(id)
+}
+
+object ReminderRecordsTable : Table("reminder_records") {
+    val id = varchar("id", 64)
+    val workspaceId = varchar("workspace_id", 128)
+    val text = text("text")
+    val dueAt = long("due_at")
+    val status = varchar("status", 32)
+    val platformId = varchar("platform_id", 128).nullable()
+    val sessionId = varchar("session_id", 128).nullable()
+    val sessionType = varchar("session_type", 32).nullable()
+    val userId = varchar("user_id", 128).nullable()
+    val createdAt = long("created_at")
+    val updatedAt = long("updated_at")
+    val deliveredAt = long("delivered_at").nullable()
+    val deletedAt = long("deleted_at").nullable()
+    val failureReason = text("failure_reason").nullable()
+    val deliveryAttemptCount = integer("delivery_attempt_count")
+
+    override val primaryKey = PrimaryKey(id)
+}
+
 /**
  * Owns the Exposed database connection and schema initialization.
  *
@@ -62,6 +121,7 @@ class DatabaseController(private val dbPath: String) : BaseController("DatabaseC
 
     @Volatile
     private var exposedDb: Database? = null
+    private var keepAliveConnection: Connection? = null
     private val lock = ReentrantLock()
 
     init {
@@ -75,6 +135,7 @@ class DatabaseController(private val dbPath: String) : BaseController("DatabaseC
     private fun openBlocking() {
         lock.withLock {
             if (exposedDb != null) return
+            keepAliveConnection = openKeepAliveConnectionIfNeeded()
             val db = Database.connect(
                 url = "jdbc:sqlite:$dbPath",
                 driver = "org.sqlite.JDBC",
@@ -86,6 +147,9 @@ class DatabaseController(private val dbPath: String) : BaseController("DatabaseC
                     MessagesTable,
                     KnowledgeBasesTable,
                     KnowledgeChunksTable,
+                    MemoryRecordsTable,
+                    PersonasTable,
+                    ReminderRecordsTable,
                 )
             }
         }
@@ -98,6 +162,8 @@ class DatabaseController(private val dbPath: String) : BaseController("DatabaseC
                 TransactionManager.closeAndUnregister(db)
             } finally {
                 exposedDb = null
+                keepAliveConnection?.close()
+                keepAliveConnection = null
             }
         }
     }
@@ -113,5 +179,11 @@ class DatabaseController(private val dbPath: String) : BaseController("DatabaseC
                 ?: throw IllegalStateException("Database not open. Call open() first.")
             return transaction(db) { block() }
         }
+    }
+
+    private fun openKeepAliveConnectionIfNeeded(): Connection? {
+        if (!dbPath.contains("mode=memory", ignoreCase = true)) return null
+        if (!dbPath.contains("cache=shared", ignoreCase = true)) return null
+        return DriverManager.getConnection("jdbc:sqlite:$dbPath")
     }
 }

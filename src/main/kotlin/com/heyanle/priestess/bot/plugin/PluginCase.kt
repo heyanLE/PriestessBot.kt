@@ -1,22 +1,26 @@
 package com.heyanle.priestess.bot.plugin
 
 class PluginCase(
-    private val manager: PluginManager,
+    private val controller: PluginController,
     private val extensionRegistry: PluginExtensionRegistry,
 ) {
-    fun list(): List<PluginDescriptor> = manager.list()
+    fun list(): List<PluginDescriptor> = controller.list()
 
-    fun discover(): List<PluginDescriptor> = manager.discover()
+    fun discover(): List<PluginDescriptor> = controller.discover()
 
-    fun load(id: String): PluginDescriptor = manager.load(id)
+    fun load(id: String): PluginDescriptor = controller.load(id)
 
-    fun enable(id: String): PluginDescriptor = manager.enable(id)
+    fun enable(id: String): PluginDescriptor = controller.enable(id)
 
-    fun disable(id: String): PluginDescriptor = manager.disable(id)
+    fun disable(id: String): PluginDescriptor = controller.disable(id)
 
-    fun unload(id: String): PluginDescriptor = manager.unload(id)
+    fun unload(id: String): PluginDescriptor = controller.unload(id)
 
-    fun reload(): List<PluginDescriptor> = manager.reload()
+    fun reload(): List<PluginDescriptor> = controller.reload()
 
     fun extensions(type: String? = null): List<PluginExtensionMetadata> = extensionRegistry.list(type)
+
+    suspend fun stop() {
+        controller.stop()
+    }
 }

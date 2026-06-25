@@ -6,6 +6,7 @@ import com.heyanle.priestess.bot.provider.ChatProvider
 import com.heyanle.priestess.bot.provider.model.ConversationMessage
 import com.heyanle.priestess.bot.provider.model.LLMRequest
 import com.heyanle.priestess.bot.tool.AgentToolContext
+import com.heyanle.priestess.bot.tool.FunctionTool
 import com.heyanle.priestess.bot.tool.ToolExecutor
 import com.heyanle.priestess.bot.tool.ToolController
 import kotlinx.coroutines.sync.Mutex
@@ -39,11 +40,22 @@ class ReActRunner(
     private var finalResponseCache: AgentResponse.Final? = null
     private var systemMessage: ConversationMessage? = null
 
-    private fun initSystemMessage() {
-        if (systemMessage == null) {
-            systemMessage = ConversationMessage.system(context.agent.instructions)
-            context.messages.add(0, systemMessage!!)
+    private fun refreshSystemMessage() {
+        val next = ConversationMessage.system(buildSystemPrompt())
+        val current = systemMessage
+        if (current == null) {
+            systemMessage = next
+            context.messages.add(0, next)
+            return
         }
+        if (current.content == next.content) return
+        val index = context.messages.indexOf(current)
+        if (index >= 0) {
+            context.messages[index] = next
+        } else {
+            context.messages.add(0, next)
+        }
+        systemMessage = next
     }
 
     override suspend fun reset() = mutex.withLock {
@@ -58,7 +70,7 @@ class ReActRunner(
     }
 
     override suspend fun stepUntilDone(): AgentResponse = mutex.withLock {
-        initSystemMessage()
+        refreshSystemMessage()
         hooks?.onAgentBegin(context)
         state = AgentState.RUNNING
 
@@ -103,21 +115,22 @@ class ReActRunner(
         }
 
         if (state == AgentState.IDLE) {
-            initSystemMessage()
+            refreshSystemMessage()
             state = AgentState.RUNNING
         }
 
         return try {
+            refreshSystemMessage()
             val compressed = contextManager.compress(
                 agent = context.agent,
                 messages = context.messages,
                 systemMessage = systemMessage,
             )
 
-            val tools = toolRegistry.toOpenAIFormat()
+            val tools = workspaceScopedTools().map { it.schema.toOpenAIFormat() }
             val request = LLMRequest(
                 model = context.agent.model,
-                messages = compressed,
+                messages = compressed.toList(),
                 tools = tools,
             )
 
@@ -164,12 +177,17 @@ class ReActRunner(
 
         val toolContext = buildToolContext()
         val results = try {
-            toolExecutor.executeBatch(toolContext, toolInputs)
+            toolExecutor.executeBatch(
+                context = toolContext,
+                toolCalls = toolInputs,
+                timeoutMillis = context.agent.toolTimeoutMs,
+            )
         } catch (e: Exception) {
             toolCalls.associate { tc ->
                 tc.id to com.heyanle.priestess.bot.tool.ToolResult(
                     success = false,
                     error = "Tool execution failed: ${e.message}",
+                    errorCode = "TOOL_EXECUTION_FAILED",
                 )
             }
         }
@@ -213,6 +231,80 @@ class ReActRunner(
             session = context.session,
             agentName = context.agent.name,
             model = context.agent.model,
+            metadata = context.metadata,
+            scopedTools = context.scopedTools,
+            skillState = context.skillState,
         )
+    }
+
+    private fun workspaceScopedTools(): List<com.heyanle.priestess.bot.tool.FunctionTool> {
+        val allowed = workspaceToolNames()
+        val tools = (toolRegistry.getAll() + context.scopedTools)
+            .distinctBy { it.schema.name }
+        return if (allowed == null) {
+            tools
+        } else {
+            tools.filter { it.schema.name in allowed }
+        }
+    }
+
+    private fun workspaceToolNames(): Set<String>? {
+        val raw = context.metadata["workspace_tool_names"]
+            ?: context.metadata["workspaceToolNames"]
+            ?: return null
+        return raw.split(",")
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .toSet()
+    }
+
+    private fun buildSystemPrompt(): String {
+        val toolBlock = renderToolBlock(workspaceScopedTools())
+        val skillBlock = renderSkillBlock()
+        return buildString {
+            append("## Platform")
+            append("\n")
+            append("Platform: ")
+            append(context.platform?.metadata?.name ?: context.session?.platformName ?: "unknown")
+            context.session?.let { session ->
+                append("\nSession: ")
+                append(session.type.name.lowercase())
+                append(" / ")
+                append(session.id)
+            }
+            append("\n\n## Role Document")
+            append("\n")
+            append(context.agent.instructions.trim())
+            append("\n\n## Tools")
+            append("\n")
+            append(toolBlock)
+            append("\n\n## Loaded Skills")
+            append("\n")
+            append(skillBlock)
+        }.trim()
+    }
+
+    private fun renderToolBlock(tools: List<FunctionTool>): String {
+        if (tools.isEmpty()) return "No tools are currently available."
+        return buildString {
+            append("Available tools:")
+            tools.forEachIndexed { index, tool ->
+                append("\n")
+                append(index + 1)
+                append(". ")
+                append(tool.schema.name)
+                append(" - ")
+                append(tool.schema.description)
+            }
+        }
+    }
+
+    private fun renderSkillBlock(): String {
+        return buildString {
+            append("Available skills: ")
+            append(context.skillState.availableNames.joinToString(", ").ifBlank { "none" })
+            append("\n")
+            append(context.skillState.renderLoadedSkillBlock())
+        }
     }
 }

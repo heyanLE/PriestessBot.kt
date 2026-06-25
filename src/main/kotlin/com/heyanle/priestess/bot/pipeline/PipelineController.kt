@@ -16,10 +16,13 @@ import com.heyanle.priestess.bot.pipeline.stages.ResultDecorateStage
 import com.heyanle.priestess.bot.pipeline.stages.SessionStatusStage
 import com.heyanle.priestess.bot.pipeline.stages.WakingCheckStage
 import com.heyanle.priestess.bot.pipeline.stages.WhitelistCheckStage
+import com.heyanle.priestess.bot.persona.PersonaMemoryInjector
 import com.heyanle.priestess.bot.platform.MessageEvent
 import com.heyanle.priestess.bot.provider.ProviderCase
+import com.heyanle.priestess.bot.skill.SkillCase
 import com.heyanle.priestess.bot.tool.ToolController
 import com.heyanle.priestess.bot.tool.ToolExecutor
+import com.heyanle.priestess.bot.workspace.WorkspaceController
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
@@ -54,7 +57,10 @@ class PipelineController private constructor(
         providerCase: ProviderCase,
         toolExecutor: ToolExecutor,
         toolController: ToolController,
+        skillCase: SkillCase? = null,
         subAgentOrchestrator: SubAgentOrchestrator? = null,
+        workspaceController: WorkspaceController? = null,
+        personaMemoryInjector: PersonaMemoryInjector? = null,
         metricsRegistry: MetricsRegistry = MetricsRegistry(),
         drainTimeoutMillis: Long = DEFAULT_DRAIN_TIMEOUT_MILLIS,
     ) : this({
@@ -66,7 +72,10 @@ class PipelineController private constructor(
             providerCase = providerCase,
             toolExecutor = toolExecutor,
             toolController = toolController,
+            skillCase = skillCase,
             subAgentOrchestrator = subAgentOrchestrator,
+            workspaceController = workspaceController,
+            personaMemoryInjector = personaMemoryInjector,
             metricsRegistry = metricsRegistry,
         )
     }, metricsRegistry, drainTimeoutMillis)
@@ -98,10 +107,14 @@ class PipelineController private constructor(
                         "session=${event.session.id}, stages=${orderedStages.size}"
                 }
                 val ctx = PipelineContext(event)
-                executePipeline(ctx, orderedStages, 0)
-                logger.info {
-                    "[PIPELINE-049] PipelineController done platform=${event.platform.metadata.name}, " +
-                        "session=${event.session.id}, stopped=${ctx.isStopped}"
+                try {
+                    executePipeline(ctx, orderedStages, 0)
+                    logger.info {
+                        "[PIPELINE-049] PipelineController done platform=${event.platform.metadata.name}, " +
+                            "session=${event.session.id}, stopped=${ctx.isStopped}"
+                    }
+                } finally {
+                    ctx.releaseWorkspace()
                 }
             } catch (e: CancellationException) {
                 status = "failed"
@@ -197,7 +210,10 @@ class PipelineController private constructor(
             providerCase: ProviderCase,
             toolExecutor: ToolExecutor,
             toolController: ToolController,
+            skillCase: SkillCase?,
             subAgentOrchestrator: SubAgentOrchestrator?,
+            workspaceController: WorkspaceController?,
+            personaMemoryInjector: PersonaMemoryInjector?,
             metricsRegistry: MetricsRegistry,
         ): List<Stage> {
             val config = configCase.current()
@@ -215,6 +231,9 @@ class PipelineController private constructor(
                     agentCase = agentCase,
                     contextManager = contextManager,
                     subAgentOrchestrator = subAgentOrchestrator,
+                    workspaceController = workspaceController,
+                    personaMemoryInjector = personaMemoryInjector,
+                    skillCase = skillCase,
                 ),
                 ProcessStage(
                     providerCase = providerCase,

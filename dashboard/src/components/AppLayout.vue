@@ -1,35 +1,39 @@
 <template>
   <div class="app-shell">
-    <aside class="sidebar">
-      <RouterLink class="brand" to="/">
-        <span class="brand-mark">P</span>
-        <span>
-          <strong>PriestessBot</strong>
-          <small>Runtime Dashboard</small>
-        </span>
-      </RouterLink>
-      <nav class="nav-list">
-        <RouterLink v-for="route in navRoutes" :key="route.path" :to="route.path">
-          {{ route.meta?.label }}
+    <header class="app-header">
+      <div class="app-header-inner">
+        <RouterLink class="brand" to="/">
+          <span class="brand-mark">P</span>
+          <span>
+            <strong>PriestessBot</strong>
+            <small>Runtime Dashboard</small>
+          </span>
         </RouterLink>
-      </nav>
-    </aside>
 
-    <main class="workspace">
-      <header class="topbar">
-        <div>
-          <h1>{{ currentLabel }}</h1>
-          <p v-if="store.lastUpdated">Updated {{ updatedAt }}</p>
-          <p v-else>Connects to the local Dashboard API.</p>
-        </div>
+        <nav class="nav-list" aria-label="Dashboard navigation">
+          <RouterLink v-for="route in navRoutes" :key="route.path" :to="route.path">
+            {{ route.meta?.label }}
+          </RouterLink>
+        </nav>
+
         <div class="topbar-actions">
           <span class="status-pill" :class="{ ok: store.health?.status === 'UP' }">
             <span class="status-dot"></span>
             {{ store.health?.status ?? 'Unknown' }}
           </span>
-          <button type="button" class="icon-button" :disabled="store.loading" @click="store.refreshAll()" title="Refresh">
-            Refresh
+          <button type="button" class="icon-button" :disabled="store.loading" @click="store.refreshAll()" title="Refresh dashboard data" aria-label="Refresh dashboard data">
+            {{ store.loading ? '...' : 'R' }}
           </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="workspace">
+      <header class="page-heading">
+        <div>
+          <h1>{{ currentLabel }}</h1>
+          <p v-if="store.lastUpdated">Updated {{ updatedAt }}</p>
+          <p v-else>Local runtime controls and operating state.</p>
         </div>
       </header>
 

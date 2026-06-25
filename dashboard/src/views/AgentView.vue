@@ -48,9 +48,33 @@
         <article v-for="message in messages" :key="message.id" class="chat-message" :class="message.role">
           <strong>{{ message.role === 'user' ? 'You' : 'Agent' }}</strong>
           <p>{{ message.content }}</p>
+          <div v-if="message.injectionTrace" class="injection-trace">
+            <span class="inline-status" :class="{ ok: Boolean(message.injectionTrace.personaId), muted: !message.injectionTrace.personaId }">
+              Persona {{ message.injectionTrace.personaName ?? 'none' }}
+            </span>
+            <span class="inline-status" :class="{ ok: message.injectionTrace.memoryCount > 0, muted: message.injectionTrace.memoryCount === 0 }">
+              Memories {{ message.injectionTrace.memoryCount }}
+            </span>
+            <span class="inline-status muted">Workspace {{ message.injectionTrace.workspaceId }}</span>
+            <div v-if="message.injectionTrace.memories.length" class="trace-memory-list">
+              <button
+                v-for="memory in message.injectionTrace.memories"
+                :key="memory.id"
+                type="button"
+                class="result-row"
+                @click="copyText(memory.id)"
+              >
+                <strong>{{ memory.type }} · {{ memory.id }}</strong>
+                <span>{{ memory.matchReason }} · {{ memory.score.toFixed(2) }} · {{ memory.contentPreview }}</span>
+              </button>
+            </div>
+          </div>
           <div v-if="message.events?.length" class="event-list">
             <span v-for="event in message.events" :key="`${event.timestamp}-${event.type}-${event.toolName}`">
               {{ event.type }}<template v-if="event.toolName"> · {{ event.toolName }}</template>
+              <template v-if="event.success === false"> · failed</template>
+              <template v-if="event.errorCode"> · {{ event.errorCode }}</template>
+              <template v-if="event.policyDenialCode"> · {{ event.policyDenialCode }}</template>
             </span>
           </div>
         </article>
@@ -69,11 +93,32 @@
           <p>{{ store.providers.length }} registered.</p>
         </div>
       </div>
-      <div class="grid list-grid">
-        <article v-for="provider in store.providers" :key="provider.name" class="card">
-          <h3>{{ provider.displayName }}</h3>
-          <p>{{ provider.name }} · {{ provider.kind }}</p>
-        </article>
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Kind</th>
+              <th>Capabilities</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="provider in store.providers" :key="provider.name">
+              <td>
+                <strong>{{ provider.displayName }}</strong>
+                <p class="muted">{{ provider.name }}</p>
+              </td>
+              <td>{{ provider.kind }}</td>
+              <td>
+                <div class="chip-row">
+                  <span class="chip">Tools {{ yesNo(provider.supportToolCalling) }}</span>
+                  <span class="chip">Vision {{ yesNo(provider.supportVision) }}</span>
+                  <span class="chip">Streaming {{ yesNo(provider.supportStreaming) }}</span>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </section>
 
@@ -84,11 +129,30 @@
           <p>{{ store.tools.length }} available.</p>
         </div>
       </div>
-      <div class="grid list-grid">
-        <article v-for="tool in store.tools" :key="tool.name" class="card">
-          <h3>{{ tool.name }}</h3>
-          <p>{{ tool.description }}</p>
-        </article>
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Source</th>
+              <th>Risk</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="tool in store.tools.slice(0, 8)" :key="tool.name">
+              <td>
+                <strong>{{ tool.name }}</strong>
+                <p class="muted">{{ tool.description }}</p>
+              </td>
+              <td>{{ tool.source }}</td>
+              <td>
+                <span class="inline-status" :class="{ danger: tool.riskLevel === 'HIGH_RISK', warn: tool.riskLevel === 'STATE_WRITE' }">
+                  {{ tool.riskLevel }}
+                </span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </section>
   </div>
@@ -96,7 +160,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { dashboardApi, type AgentChatEventDto, type AgentConfig } from '../api/dashboard';
+import { dashboardApi, type AgentChatEventDto, type AgentChatInjectionTraceDto, type AgentConfig } from '../api/dashboard';
 import EmptyState from '../components/EmptyState.vue';
 import { useDashboardStore } from '../stores/dashboard';
 
@@ -105,6 +169,7 @@ interface ChatMessage {
   role: 'user' | 'agent';
   content: string;
   events?: AgentChatEventDto[];
+  injectionTrace?: AgentChatInjectionTraceDto;
 }
 
 const store = useDashboardStore();
@@ -115,6 +180,7 @@ const sending = ref(false);
 const messages = ref<ChatMessage[]>([]);
 
 const agent = computed(() => store.config?.agent ?? null);
+const yesNo = (value: boolean) => (value ? 'yes' : 'no');
 
 function resetDraft() {
   draft.value = JSON.stringify(agent.value, null, 2);
@@ -152,6 +218,7 @@ async function sendMessage() {
       role: 'agent',
       content: response.content,
       events: response.events,
+      injectionTrace: response.injectionTrace,
     });
   } catch (cause) {
     messages.value.push({
@@ -162,6 +229,10 @@ async function sendMessage() {
   } finally {
     sending.value = false;
   }
+}
+
+async function copyText(value: string) {
+  await navigator.clipboard?.writeText(value);
 }
 
 watch(agent, resetDraft, { immediate: true });

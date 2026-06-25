@@ -4,10 +4,11 @@ import com.heyanle.priestess.bot.config.ConfigController
 import com.heyanle.priestess.bot.core.db.DatabaseController
 import com.heyanle.priestess.bot.pipeline.PipelineController
 import com.heyanle.priestess.bot.platform.PlatformController
-import com.heyanle.priestess.bot.plugin.PluginManager
+import com.heyanle.priestess.bot.plugin.PluginCase
 import com.heyanle.priestess.bot.provider.ProviderController
 import com.heyanle.priestess.bot.server.PriestessBotServer
 import com.heyanle.priestess.bot.tool.ToolController
+import com.heyanle.priestess.bot.workspace.WorkspaceController
 import io.github.oshai.kotlinlogging.KotlinLogging
 
 class PriestessRuntime private constructor(
@@ -20,9 +21,10 @@ class PriestessRuntime private constructor(
         platformController: PlatformController,
         pipelineController: PipelineController,
         server: PriestessBotServer,
-        pluginManager: PluginManager,
+        pluginCase: PluginCase,
         providerController: ProviderController,
         toolController: ToolController,
+        workspaceController: WorkspaceController,
         databaseController: DatabaseController,
         configController: ConfigController,
         pipelineDrainTimeoutMillis: Long = PipelineController.DEFAULT_DRAIN_TIMEOUT_MILLIS,
@@ -35,9 +37,10 @@ class PriestessRuntime private constructor(
                 pipelineController.stop()
             },
             StopStep("server") { server.stop() },
-            StopStep("plugins") { pluginManager.stop() },
+            StopStep("plugins") { pluginCase.stop() },
             StopStep("providers") { providerController.stop() },
             StopStep("tools") { toolController.stop() },
+            StopStep("workspace") { workspaceController.close() },
             StopStep("database") { databaseController.stop() },
             StopStep("config") { configController.stop() },
         ),
