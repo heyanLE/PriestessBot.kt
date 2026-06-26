@@ -2,6 +2,9 @@ package com.heyanle.priestess.bot.config
 
 import kotlinx.serialization.Serializable
 
+/**
+ * 模型提供商配置，描述一个 LLM 后端实例的类型、模型、地址、密钥和扩展参数。
+ */
 @Serializable
 data class ProviderConfig(
     val name: String = "",

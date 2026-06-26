@@ -8,6 +8,7 @@ import com.heyanle.priestess.bot.tool.ToolParameters
 import com.heyanle.priestess.bot.tool.ToolRiskLevel
 import com.heyanle.priestess.bot.tool.ToolSchema
 import com.heyanle.priestess.bot.tool.ToolSource
+import com.heyanle.priestess.bot.tool.ToolCase
 import com.heyanle.priestess.bot.tool.ToolController
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
@@ -92,7 +93,7 @@ class ListToolsToolTest {
     @Test
     fun `dependency backed built in tools are listed unavailable when providers are missing`() = runBlocking {
         val registry = ToolController()
-        registerBuiltinTools(registry)
+        registerBuiltinTools(ToolCase(registry))
         val tool = registry.get("list_tools") ?: error("list_tools not registered")
 
         val response = json.decodeFromString<ListToolsResponse>(

@@ -10,9 +10,12 @@ import com.heyanle.priestess.bot.plugin.PluginExtensionRegistry
 import com.heyanle.priestess.bot.plugin.PluginController
 import com.heyanle.priestess.bot.plugin.PluginManifest
 import com.heyanle.priestess.bot.plugin.PluginState
+import com.heyanle.priestess.bot.provider.ProviderCase
 import com.heyanle.priestess.bot.provider.ProviderController
+import com.heyanle.priestess.bot.tool.ToolCase
 import com.heyanle.priestess.bot.testkit.buildDemoPluginJar
 import com.heyanle.priestess.bot.tool.ToolController
+import com.heyanle.priestess.bot.tool.ToolSource
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -50,11 +53,13 @@ class PluginContributionIntegrationTest {
         val extensionRegistry = PluginExtensionRegistry()
         val toolController = ToolController()
         val providerController = ProviderController(configCase)
+        val toolCase = ToolCase(toolController)
+        val providerCase = ProviderCase(providerController)
         val manager = PluginController(
             configCase = configCase,
             extensionRegistry = extensionRegistry,
-            toolController = toolController,
-            providerController = providerController,
+            toolCase = toolCase,
+            providerCase = providerCase,
         )
         val pluginCase = PluginCase(manager, extensionRegistry)
 
@@ -63,6 +68,9 @@ class PluginContributionIntegrationTest {
             assertEquals(PluginState.ENABLED, pluginCase.enable("demo").state)
 
             assertEquals("demo-tool", toolController.get("demo-tool")?.schema?.name)
+            val registeredTool = toolController.getRegisteredTools().single { it.schema.name == "demo-tool" }
+            assertEquals(ToolSource.PLUGIN, registeredTool.metadata.source)
+            assertEquals("demo", registeredTool.metadata.owner)
             assertEquals("demo-provider", providerController.getByName("demo-provider")?.metadata?.name)
             assertEquals("demo-platform", PlatformRegistry.createPlatform("demo-platform")?.metadata?.name)
             assertEquals(listOf("platform", "provider", "tool"), pluginCase.extensions().map { it.type }.sorted())

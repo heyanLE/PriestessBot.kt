@@ -2,6 +2,9 @@ package com.heyanle.priestess.bot.agent.context
 
 import com.heyanle.priestess.bot.provider.model.ConversationMessage
 
+/**
+ * Token 估算器，用于为上下文压缩提供轻量级 token 计数。
+ */
 class TokenCounter {
 
     fun count(message: ConversationMessage): Int {

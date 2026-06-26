@@ -1,5 +1,8 @@
 package com.heyanle.priestess.bot.knowledge
 
+/**
+ * 知识库模块门面，向外提供知识库创建、文档入库和检索能力。
+ */
 class KnowledgeCase(
     private val controller: KnowledgeController,
 ) {

@@ -7,8 +7,7 @@ import com.heyanle.priestess.bot.provider.model.ConversationMessage
 import com.heyanle.priestess.bot.provider.model.LLMRequest
 import com.heyanle.priestess.bot.tool.AgentToolContext
 import com.heyanle.priestess.bot.tool.FunctionTool
-import com.heyanle.priestess.bot.tool.ToolExecutor
-import com.heyanle.priestess.bot.tool.ToolController
+import com.heyanle.priestess.bot.tool.ToolCase
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -18,15 +17,14 @@ import kotlinx.coroutines.sync.withLock
  * 核心循环：
  * 1. 检查上下文 → ContextManager.compress()
  * 2. 调 LLM → provider.textChat(messages, tools)
- * 3. 有 ToolCall → ToolExecutor.execute() → 结果注入消息 → 回到步骤 1
+ * 3. 有 ToolCall → ToolCase.executeBatch() → 结果注入消息 → 回到步骤 1
  * 4. 无 ToolCall → Final 回答
  * 5. 超 maxSteps → Error
  */
 class ReActRunner(
     private val context: AgentContext,
     private val provider: ChatProvider,
-    private val toolExecutor: ToolExecutor,
-    private val toolRegistry: ToolController,
+    private val toolCase: ToolCase,
     private val contextManager: ContextManager,
     private val hooks: AgentHooks? = null,
 ) : AgentRunner {
@@ -177,7 +175,7 @@ class ReActRunner(
 
         val toolContext = buildToolContext()
         val results = try {
-            toolExecutor.executeBatch(
+            toolCase.executeBatch(
                 context = toolContext,
                 toolCalls = toolInputs,
                 timeoutMillis = context.agent.toolTimeoutMs,
@@ -237,9 +235,9 @@ class ReActRunner(
         )
     }
 
-    private fun workspaceScopedTools(): List<com.heyanle.priestess.bot.tool.FunctionTool> {
+    private fun workspaceScopedTools(): List<FunctionTool> {
         val allowed = workspaceToolNames()
-        val tools = (toolRegistry.getAll() + context.scopedTools)
+        val tools = (toolCase.getAll() + context.scopedTools)
             .distinctBy { it.schema.name }
         return if (allowed == null) {
             tools

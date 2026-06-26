@@ -13,6 +13,9 @@ import io.ktor.serialization.kotlinx.json.*
 import kotlinx.serialization.json.*
 import java.util.UUID
 
+/**
+ * Ollama 本地模型提供者，负责调用本地 chat 和 tags 接口。
+ */
 class OllamaProvider(
     override val config: ProviderConfig,
     override val metadata: ProviderMetadata = ProviderMetadata(

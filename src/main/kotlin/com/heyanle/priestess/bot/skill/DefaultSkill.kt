@@ -1,10 +1,7 @@
 package com.heyanle.priestess.bot.skill
 
 /**
- * Fallback [Skill] that handles any message when no other skill can.
- *
- * Registers with the lowest possible priority ([Int.MIN_VALUE]) so that
- * all custom skills are evaluated first.
+ * 默认兜底技能，在没有其他技能可处理消息时返回通用提示。
  */
 class DefaultSkill : Skill {
 

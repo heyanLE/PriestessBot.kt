@@ -1,9 +1,9 @@
 package com.heyanle.priestess.bot.pipeline.stages
 
 import com.heyanle.priestess.bot.agent.AgentResponse
-import com.heyanle.priestess.bot.agent.context.ContextManager
-import com.heyanle.priestess.bot.agent.context.TokenCounter
+import com.heyanle.priestess.bot.agent.AgentCase
 import com.heyanle.priestess.bot.observability.MetricsRegistry
+import com.heyanle.priestess.bot.observability.ObservabilityCase
 import com.heyanle.priestess.bot.provider.ChatProvider
 import com.heyanle.priestess.bot.provider.ProviderCase
 import com.heyanle.priestess.bot.provider.ProviderController
@@ -14,8 +14,8 @@ import com.heyanle.priestess.bot.testkit.FakeProvider
 import com.heyanle.priestess.bot.testkit.testAgentContext
 import com.heyanle.priestess.bot.testkit.testConfigCase
 import com.heyanle.priestess.bot.testkit.testPipelineContext
+import com.heyanle.priestess.bot.tool.ToolCase
 import com.heyanle.priestess.bot.tool.ToolController
-import com.heyanle.priestess.bot.tool.ToolExecutor
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
@@ -97,11 +97,10 @@ class ProcessStageTest {
     ): ProcessStage {
         val toolController = ToolController()
         return ProcessStage(
+            agentCase = AgentCase(),
             providerCase = ProviderCase(providerController),
-            toolExecutor = ToolExecutor(toolController),
-            toolController = toolController,
-            contextManager = ContextManager(TokenCounter()),
-            metricsRegistry = metrics,
+            toolCase = ToolCase(toolController),
+            observabilityCase = ObservabilityCase.standalone(metrics),
         )
     }
 

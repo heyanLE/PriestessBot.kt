@@ -4,6 +4,9 @@ import com.heyanle.priestess.bot.agent.Agent
 import com.heyanle.priestess.bot.agent.CompressStrategy
 import com.heyanle.priestess.bot.provider.model.ConversationMessage
 
+/**
+ * 上下文管理器，负责判断消息是否需要压缩并选择对应压缩策略。
+ */
 class ContextManager(
     private val tokenCounter: TokenCounter,
     private val strategies: Map<CompressStrategy, ContextCompressStrategy> = mapOf(

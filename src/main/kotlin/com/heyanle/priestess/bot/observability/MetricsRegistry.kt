@@ -3,6 +3,9 @@ package com.heyanle.priestess.bot.observability
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.LongAdder
 
+/**
+ * 指标注册表，负责以线程安全方式累计计数器和耗时摘要并渲染 Prometheus 文本。
+ */
 class MetricsRegistry {
     private val counters = ConcurrentHashMap<MetricKey, LongAdder>()
     private val durations = ConcurrentHashMap<MetricKey, DurationValue>()
@@ -50,11 +53,17 @@ class MetricsRegistry {
             }
     }
 
+    /**
+     * 耗时摘要的累计值，分别记录样本数量和毫秒总和。
+     */
     private data class DurationValue(
         val count: LongAdder = LongAdder(),
         val sum: LongAdder = LongAdder(),
     )
 
+    /**
+     * 指标样本键，包含指标名和排序后的标签集合。
+     */
     private data class MetricKey(
         val name: String,
         val labels: Map<String, String>,
@@ -71,6 +80,9 @@ class MetricsRegistry {
         }
     }
 
+    /**
+     * 指标定义，描述 Prometheus 输出中的名称、说明、类型和内部类别。
+     */
     private data class MetricDefinition(
         val name: String,
         val help: String,
@@ -78,6 +90,9 @@ class MetricsRegistry {
         val kind: MetricKind,
     )
 
+    /**
+     * 指标内部类别，用于选择计数器或耗时摘要的渲染方式。
+     */
     private enum class MetricKind {
         COUNTER,
         DURATION,

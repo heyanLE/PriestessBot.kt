@@ -1,10 +1,16 @@
 package com.heyanle.priestess.bot.skill
 
+/**
+ * 技能提示文档，保存可注入模型上下文的技能名称和 Markdown 内容。
+ */
 data class SkillPromptDocument(
     val name: String,
     val markdown: String,
 )
 
+/**
+ * 流水线技能状态，记录当前工作区可用和已加载的技能提示文档。
+ */
 class PipelineSkillState(
     availableSkills: List<SkillPromptDocument> = emptyList(),
 ) {

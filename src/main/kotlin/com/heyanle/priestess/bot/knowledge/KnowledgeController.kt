@@ -1,6 +1,7 @@
 package com.heyanle.priestess.bot.knowledge
 
-import com.heyanle.priestess.bot.core.db.DatabaseController
+import com.heyanle.priestess.bot.core.controller.BaseController
+import com.heyanle.priestess.bot.core.db.DatabaseCase
 import com.heyanle.priestess.bot.core.db.KnowledgeBasesTable
 import com.heyanle.priestess.bot.core.db.KnowledgeChunksTable
 import org.jetbrains.exposed.sql.ResultRow
@@ -9,9 +10,12 @@ import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.selectAll
 import java.util.UUID
 
+/**
+ * 知识库控制器，负责知识库和知识片段的持久化读写。
+ */
 class KnowledgeController(
-    private val db: DatabaseController,
-) {
+    private val db: DatabaseCase,
+) : BaseController("KnowledgeController") {
     fun createBase(name: String, description: String = ""): KnowledgeBase {
         require(name.isNotBlank()) { "Knowledge base name must not be blank" }
         return db.execute {

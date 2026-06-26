@@ -2,6 +2,9 @@ package com.heyanle.priestess.bot.config
 
 import kotlinx.serialization.Serializable
 
+/**
+ * 平台接入配置，描述一个聊天平台实例的类型、连接参数和扩展配置。
+ */
 @Serializable
 data class PlatformConfig(
     val name: String = "",

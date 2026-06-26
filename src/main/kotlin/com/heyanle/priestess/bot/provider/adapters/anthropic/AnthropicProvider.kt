@@ -30,6 +30,9 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 
+/**
+ * Anthropic 模型提供者，负责将通用请求转换为 Claude messages API 调用。
+ */
 class AnthropicProvider(
     override val config: ProviderConfig,
     override val metadata: ProviderMetadata = ProviderMetadata(

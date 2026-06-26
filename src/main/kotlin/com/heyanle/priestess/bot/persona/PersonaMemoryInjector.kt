@@ -5,6 +5,9 @@ import com.heyanle.priestess.bot.memory.MemoryScopeContext
 import com.heyanle.priestess.bot.memory.MemorySearchQuery
 import com.heyanle.priestess.bot.memory.MemorySearchResult
 
+/**
+ * 人设与记忆注入上下文，描述当前消息可使用的人设和记忆范围。
+ */
 data class PersonaMemoryInjectionContext(
     val workspaceId: String,
     val agentName: String,
@@ -16,6 +19,9 @@ data class PersonaMemoryInjectionContext(
     val allowedPersonaIds: Set<String>? = null,
 )
 
+/**
+ * 人设与记忆注入结果，包含渲染后的指令、元数据和命中的上下文。
+ */
 data class PersonaMemoryInjection(
     val instructions: String,
     val metadata: Map<String, String>,
@@ -26,6 +32,9 @@ data class PersonaMemoryInjection(
         get() = persona != null || memories.isNotEmpty()
 }
 
+/**
+ * 人设与记忆注入器，将匹配的人设和记忆渲染进智能体指令。
+ */
 class PersonaMemoryInjector(
     private val personaCase: PersonaCase,
     private val memoryCase: MemoryCase,

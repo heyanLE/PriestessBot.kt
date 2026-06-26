@@ -16,7 +16,7 @@ import com.heyanle.priestess.bot.persona.PersonaMemoryInjector
 import com.heyanle.priestess.bot.provider.model.ConversationMessage
 import com.heyanle.priestess.bot.skill.PipelineSkillState
 import com.heyanle.priestess.bot.skill.SkillCase
-import com.heyanle.priestess.bot.workspace.WorkspaceController
+import com.heyanle.priestess.bot.workspace.WorkspaceCase
 import com.heyanle.priestess.bot.workspace.WorkspaceResolutionContext
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.flow.Flow
@@ -26,11 +26,9 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
 /**
- * Prepares the agent context before downstream stages and persists history after them.
+ * 预处理阶段，负责准备 AgentContext 并在下游阶段完成后持久化对话历史。
  *
- * This stage participates in the onion model: setup happens immediately in
- * [process], while persistence is deferred to the returned [Flow] and runs after
- * Process, decoration, and response stages complete.
+ * 该阶段采用洋葱模型：进入阶段时完成上下文准备，返回的 Flow 在执行、装饰和响应阶段之后保存历史。
  */
 class PreProcessStage(
     private val agentConfig: AgentConfig,
@@ -38,9 +36,8 @@ class PreProcessStage(
     private val pipelineConfig: PipelineConfig,
     private val conversationCase: ConversationCase,
     private val agentCase: AgentCase,
-    private val contextManager: com.heyanle.priestess.bot.agent.context.ContextManager,
     private val subAgentOrchestrator: SubAgentOrchestrator? = null,
-    private val workspaceController: WorkspaceController? = null,
+    private val workspaceCase: WorkspaceCase? = null,
     private val personaMemoryInjector: PersonaMemoryInjector? = null,
     private val skillCase: SkillCase? = null,
 ) : Stage {
@@ -53,7 +50,7 @@ class PreProcessStage(
     override suspend fun process(ctx: PipelineContext): Flow<Unit> {
         val session = ctx.event.session
         val platform = ctx.event.platform
-        val workspaceResolution = workspaceController?.resolve(
+        val workspaceResolution = workspaceCase?.resolve(
             WorkspaceResolutionContext(
                 platformName = platform.metadata.name,
                 sessionId = session.id,

@@ -4,25 +4,22 @@ import com.heyanle.priestess.bot.agent.AgentCase
 import com.heyanle.priestess.bot.agent.AgentContext
 import com.heyanle.priestess.bot.agent.AgentHooks
 import com.heyanle.priestess.bot.agent.AgentResponse
-import com.heyanle.priestess.bot.agent.context.ContextManager
-import com.heyanle.priestess.bot.agent.runner.ReActRunner
 import com.heyanle.priestess.bot.config.AgentConfig
 import com.heyanle.priestess.bot.config.SubAgentConfig
 import com.heyanle.priestess.bot.config.SubAgentOrchestrationConfig
 import com.heyanle.priestess.bot.config.SubAgentRouteConfig
 import com.heyanle.priestess.bot.provider.ProviderCase
 import com.heyanle.priestess.bot.provider.model.ConversationMessage
-import com.heyanle.priestess.bot.server.AgentChatEventDto
-import com.heyanle.priestess.bot.tool.ToolController
-import com.heyanle.priestess.bot.tool.ToolExecutor
+import com.heyanle.priestess.bot.tool.ToolCase
 import java.util.UUID
 
+/**
+ * 子 Agent 编排器，负责根据路由配置选择并运行匹配的子 Agent。
+ */
 class SubAgentOrchestrator(
     private val agentCase: AgentCase,
-    private val contextManager: ContextManager,
     private val providerCase: ProviderCase,
-    private val toolExecutor: ToolExecutor,
-    private val toolController: ToolController,
+    private val toolCase: ToolCase,
 ) {
     fun select(
         message: String,
@@ -76,7 +73,7 @@ class SubAgentOrchestrator(
         conversationId: String = "sub-agent-${UUID.randomUUID()}",
     ): SubAgentRunResult {
         val selection = select(message, primaryAgent, config)
-        val events = mutableListOf<AgentChatEventDto>()
+        val events = mutableListOf<SubAgentRunEvent>()
 
         if (message.isBlank()) {
             return SubAgentRunResult(selection, "ERROR", "Message must not be blank", events, conversationId)
@@ -102,15 +99,15 @@ class SubAgentOrchestrator(
         )
         val hooks = object : AgentHooks {
             override suspend fun onAgentBegin(context: AgentContext) {
-                events += AgentChatEventDto(type = "agent_begin", message = "Agent started")
+                events += SubAgentRunEvent(type = "agent_begin", message = "Agent started")
             }
 
             override suspend fun onToolStart(context: AgentContext, toolName: String, arguments: String) {
-                events += AgentChatEventDto(type = "tool_start", message = arguments, toolName = toolName)
+                events += SubAgentRunEvent(type = "tool_start", message = arguments, toolName = toolName)
             }
 
             override suspend fun onToolEnd(context: AgentContext, toolName: String, result: AgentResponse.ToolExecuted) {
-                events += AgentChatEventDto(
+                events += SubAgentRunEvent(
                     type = "tool_end",
                     message = if (result.toolResult.success) result.toolResult.output else result.toolResult.error,
                     toolName = toolName,
@@ -121,24 +118,20 @@ class SubAgentOrchestrator(
             }
 
             override suspend fun onAgentDone(context: AgentContext, response: AgentResponse.Final) {
-                events += AgentChatEventDto(type = "agent_done", message = "Agent completed")
+                events += SubAgentRunEvent(type = "agent_done", message = "Agent completed")
             }
 
             override suspend fun onAgentError(context: AgentContext, error: AgentResponse.Error) {
-                events += AgentChatEventDto(type = "agent_error", message = error.message, success = false)
+                events += SubAgentRunEvent(type = "agent_error", message = error.message, success = false)
             }
         }
 
-        val runner = ReActRunner(
+        return when (val response = agentCase.runWithProvider(
             context = context,
             provider = provider,
-            toolExecutor = toolExecutor,
-            toolRegistry = toolController,
-            contextManager = contextManager,
+            toolCase = toolCase,
             hooks = hooks,
-        )
-
-        return when (val response = runner.stepUntilDone()) {
+        )) {
             is AgentResponse.Final -> SubAgentRunResult(selection, "FINAL", response.content, events, conversationId)
             is AgentResponse.Error -> SubAgentRunResult(selection, "ERROR", response.message, events, conversationId)
             else -> SubAgentRunResult(
@@ -161,6 +154,9 @@ class SubAgentOrchestrator(
     }
 }
 
+/**
+ * 子 Agent 选择结果，描述最终使用的 Agent 配置和命中原因。
+ */
 data class SubAgentSelection(
     val agentName: String,
     val agentConfig: AgentConfig,
@@ -168,10 +164,26 @@ data class SubAgentSelection(
     val reason: String,
 )
 
+/**
+ * 子 Agent 运行结果，包含选择结果、状态、输出内容和事件流水。
+ */
 data class SubAgentRunResult(
     val selection: SubAgentSelection,
     val status: String,
     val content: String,
-    val events: List<AgentChatEventDto>,
+    val events: List<SubAgentRunEvent>,
     val conversationId: String,
+)
+
+/**
+ * 子 Agent 运行事件，记录编排测试执行中的 Agent 和工具调用过程。
+ */
+data class SubAgentRunEvent(
+    val type: String,
+    val message: String,
+    val toolName: String? = null,
+    val success: Boolean? = null,
+    val errorCode: String? = null,
+    val policyDenialCode: String? = null,
+    val timestamp: Long = System.currentTimeMillis(),
 )

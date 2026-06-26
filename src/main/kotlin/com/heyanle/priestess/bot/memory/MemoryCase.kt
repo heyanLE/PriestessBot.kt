@@ -1,5 +1,8 @@
 package com.heyanle.priestess.bot.memory
 
+/**
+ * 记忆模块门面，向外提供记忆保存、查询、检索和删除能力。
+ */
 class MemoryCase(
     private val controller: MemoryController,
 ) {

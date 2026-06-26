@@ -1,8 +1,6 @@
 package com.heyanle.priestess.bot.server
 
 import com.heyanle.priestess.bot.agent.AgentCase
-import com.heyanle.priestess.bot.agent.context.ContextManager
-import com.heyanle.priestess.bot.agent.context.TokenCounter
 import com.heyanle.priestess.bot.agent.orchestration.SubAgentOrchestrator
 import com.heyanle.priestess.bot.config.AgentConfig
 import com.heyanle.priestess.bot.config.ConfigBackup
@@ -20,6 +18,7 @@ import com.heyanle.priestess.bot.conversation.ConversationCase
 import com.heyanle.priestess.bot.conversation.ConversationController
 import com.heyanle.priestess.bot.conversation.MessageHistory
 import com.heyanle.priestess.bot.conversation.MessageRole
+import com.heyanle.priestess.bot.core.db.DatabaseCase
 import com.heyanle.priestess.bot.core.db.DatabaseController
 import com.heyanle.priestess.bot.knowledge.KnowledgeCase
 import com.heyanle.priestess.bot.knowledge.KnowledgeController
@@ -28,6 +27,7 @@ import com.heyanle.priestess.bot.memory.MemoryController
 import com.heyanle.priestess.bot.memory.MemoryScope
 import com.heyanle.priestess.bot.memory.MemoryType
 import com.heyanle.priestess.bot.observability.MetricsRegistry
+import com.heyanle.priestess.bot.observability.ObservabilityCase
 import com.heyanle.priestess.bot.persona.PersonaCase
 import com.heyanle.priestess.bot.persona.PersonaController
 import com.heyanle.priestess.bot.persona.PersonaMemoryInjector
@@ -51,6 +51,7 @@ import com.heyanle.priestess.bot.provider.model.TokenUsage
 import com.heyanle.priestess.bot.provider.model.ToolCall
 import com.heyanle.priestess.bot.tool.AgentToolContext
 import com.heyanle.priestess.bot.tool.FunctionTool
+import com.heyanle.priestess.bot.tool.ToolCase
 import com.heyanle.priestess.bot.tool.ToolParameters
 import com.heyanle.priestess.bot.tool.ToolResult
 import com.heyanle.priestess.bot.tool.ToolSchema
@@ -61,6 +62,7 @@ import com.heyanle.priestess.bot.tool.builtin.registerBuiltinTools
 import com.heyanle.priestess.bot.skill.SkillCase
 import com.heyanle.priestess.bot.skill.SkillController
 import com.heyanle.priestess.bot.workspace.ConfigBackedWorkspaceConfigSource
+import com.heyanle.priestess.bot.workspace.WorkspaceCase
 import com.heyanle.priestess.bot.workspace.WorkspaceController
 import io.ktor.client.call.body
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
@@ -135,7 +137,7 @@ class DashboardRoutesTest {
             value.contains("secret-provider-key") || value.contains("secret-platform-token")
         })
 
-        val healthTool = HealthCheckTool { service.healthProviderForTest() }
+        val healthTool = HealthCheckTool { service.serverCaseForTest().healthSnapshotJson() }
         val healthToolBody = Json.decodeFromString<HealthResponse>(
             runBlocking { healthTool.execute(AgentToolContext(), emptyMap()).output },
         )
@@ -756,7 +758,7 @@ class DashboardRoutesTest {
 
     @Test
     fun `sub-agent routes read replace config and test selected execution`() = testApplication {
-        val service = testService(testProvider = ScriptedProvider(finalContent = "code agent reply"))
+        val service = testService(testProvider = ScriptedProvider(toolFirst = true, finalContent = "code agent reply"))
         application {
             configureDashboardApplication(service, corsEnabled = false)
         }
@@ -808,6 +810,19 @@ class DashboardRoutesTest {
         assertEquals("keyword_match", response.selectionReason)
         assertEquals("code agent reply", response.content)
         assertTrue(response.events.any { it.type == "agent_begin" })
+        assertTrue(response.events.any {
+            it.type == "tool_start" &&
+                it.toolName == "dashboard_echo" &&
+                it.message.contains("hello")
+        })
+        assertTrue(response.events.any {
+            it.type == "tool_end" &&
+                it.toolName == "dashboard_echo" &&
+                it.success == true &&
+                it.errorCode == null &&
+                it.policyDenialCode == null &&
+                it.timestamp > 0
+        })
         assertTrue(response.events.any { it.type == "agent_done" })
     }
 
@@ -850,14 +865,15 @@ class DashboardRoutesTest {
         )
         val configCase = ConfigCase(configController)
         val db = DatabaseController(dbPath.toString())
-        val conversationCase = ConversationCase(ConversationController(db), MessageHistory(db))
-        val knowledgeCase = KnowledgeCase(KnowledgeController(db))
-        val memoryCase = MemoryCase(MemoryController(db))
-        val personaCase = PersonaCase(PersonaController(db))
+        val dbCase = DatabaseCase(db)
+        val conversationCase = ConversationCase(ConversationController(dbCase), MessageHistory(dbCase))
+        val knowledgeCase = KnowledgeCase(KnowledgeController(dbCase))
+        val memoryCase = MemoryCase(MemoryController(dbCase))
+        val personaCase = PersonaCase(PersonaController(dbCase))
         val toolController = ToolController()
-        val contextManager = ContextManager(TokenCounter())
+        val toolCase = ToolCase(toolController)
         val metricsRegistry = MetricsRegistry()
-        val toolExecutor = ToolExecutor(toolController, metricsRegistry)
+        val observabilityCase = ObservabilityCase.standalone(metricsRegistry)
         val providerController = ProviderController(configCase)
         val providerCase = ProviderCase(providerController)
         val pluginRegistry = PluginExtensionRegistry()
@@ -865,25 +881,29 @@ class DashboardRoutesTest {
             PluginController(
                 configCase = configCase,
                 extensionRegistry = pluginRegistry,
-                toolController = toolController,
-                providerController = providerController,
+                toolCase = toolCase,
+                providerCase = providerCase,
             ),
             pluginRegistry,
         )
-        val platformCase = PlatformCase(pipelineCaseProvider = { error("Pipeline is not used in route tests") })
-        val platformController = PlatformController(configCase, platformCase)
+        lateinit var platformController: PlatformController
+        val platformCase = PlatformCase(
+            pipelineCaseProvider = { error("Pipeline is not used in route tests") },
+            controllerProvider = { platformController },
+        )
+        platformController = PlatformController(configCase, platformCase)
         val healthProvider = RuntimeHealthProvider(
-            configController = configController,
             configCase = configCase,
-            platformController = platformController,
+            platformCase = platformCase,
             providerCase = providerCase,
-            toolController = toolController,
+            toolCase = toolCase,
             pluginCase = pluginCase,
         )
+        lateinit var serverCase: ServerCase
         registerBuiltinTools(
-            registry = toolController,
+            registry = toolCase,
             knowledgeCaseProvider = { knowledgeCase },
-            healthProvider = { healthProvider },
+            serverCaseProvider = { serverCase },
             conversationCaseProvider = { conversationCase },
             memoryCaseProvider = { memoryCase },
         )
@@ -891,38 +911,35 @@ class DashboardRoutesTest {
         val agentCase = AgentCase()
         val subAgentOrchestrator = SubAgentOrchestrator(
             agentCase = agentCase,
-            contextManager = contextManager,
             providerCase = providerCase,
-            toolExecutor = toolExecutor,
-            toolController = toolController,
+            toolCase = toolCase,
         )
         val workspaceController = WorkspaceController(
             source = ConfigBackedWorkspaceConfigSource(configCase),
-            toolController = toolController,
+            toolCase = toolCase,
             skillCase = SkillCase(SkillController()),
             nowProvider = { 1_000L },
         )
 
-        return DashboardService(
-            configController = configController,
+        val service = DashboardService(
             configCase = configCase,
-            platformController = platformController,
+            platformCase = platformCase,
             providerCase = providerCase,
-            toolController = toolController,
+            toolCase = toolCase,
             conversationCase = conversationCase,
             pluginCase = pluginCase,
             agentCase = agentCase,
-            contextManager = contextManager,
-            toolExecutor = toolExecutor,
             knowledgeCase = knowledgeCase,
             subAgentOrchestrator = subAgentOrchestrator,
-            metricsRegistry = metricsRegistry,
+            observabilityCase = observabilityCase,
             healthProvider = healthProvider,
-            workspaceController = workspaceController,
+            workspaceCase = WorkspaceCase(workspaceController),
             personaCase = personaCase,
             memoryCase = memoryCase,
             personaMemoryInjector = PersonaMemoryInjector(personaCase, memoryCase),
         )
+        serverCase = service.serverCaseForTest()
+        return service
     }
 
     private class ScriptedProvider(
@@ -1003,6 +1020,19 @@ class DashboardRoutesTest {
         val field = DashboardService::class.java.getDeclaredField("healthProvider")
         field.isAccessible = true
         return field.get(this) as RuntimeHealthProvider
+    }
+
+    private fun DashboardService.serverCaseForTest(): ServerCase {
+        val healthProvider = healthProviderForTest()
+        return ServerCase(
+            controller = ServerController(
+                PriestessBotServer(
+                    config = config().server,
+                    service = this,
+                ),
+            ),
+            healthProvider = healthProvider,
+        )
     }
 
     private fun buildJavaPluginJar(pluginDir: File) {

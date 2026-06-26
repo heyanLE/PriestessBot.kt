@@ -1,8 +1,6 @@
 package com.heyanle.priestess.bot.agent.orchestration
 
 import com.heyanle.priestess.bot.agent.AgentCase
-import com.heyanle.priestess.bot.agent.context.ContextManager
-import com.heyanle.priestess.bot.agent.context.TokenCounter
 import com.heyanle.priestess.bot.config.AgentConfig
 import com.heyanle.priestess.bot.config.ConfigCase
 import com.heyanle.priestess.bot.config.ConfigController
@@ -19,6 +17,7 @@ import com.heyanle.priestess.bot.provider.ProviderMetadata
 import com.heyanle.priestess.bot.provider.ProviderRegistry
 import com.heyanle.priestess.bot.provider.model.LLMRequest
 import com.heyanle.priestess.bot.provider.model.LLMResponse
+import com.heyanle.priestess.bot.tool.ToolCase
 import com.heyanle.priestess.bot.tool.ToolController
 import com.heyanle.priestess.bot.tool.ToolExecutor
 import java.nio.file.Files
@@ -99,10 +98,8 @@ class SubAgentOrchestratorTest {
         val toolController = ToolController()
         return SubAgentOrchestrator(
             agentCase = AgentCase(),
-            contextManager = ContextManager(TokenCounter()),
             providerCase = providerCase,
-            toolExecutor = ToolExecutor(toolController),
-            toolController = toolController,
+            toolCase = ToolCase(toolController),
         )
     }
 

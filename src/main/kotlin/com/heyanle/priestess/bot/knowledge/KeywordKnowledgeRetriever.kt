@@ -1,5 +1,8 @@
 package com.heyanle.priestess.bot.knowledge
 
+/**
+ * 基于关键词的知识检索器，用轻量匹配为知识片段排序。
+ */
 object KeywordKnowledgeRetriever {
     private val tokenRegex = Regex("[\\p{L}\\p{N}_]+")
 

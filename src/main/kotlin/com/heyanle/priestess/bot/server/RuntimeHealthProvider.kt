@@ -1,18 +1,19 @@
 package com.heyanle.priestess.bot.server
 
 import com.heyanle.priestess.bot.config.ConfigCase
-import com.heyanle.priestess.bot.config.ConfigController
 import com.heyanle.priestess.bot.plugin.PluginCase
-import com.heyanle.priestess.bot.platform.PlatformController
+import com.heyanle.priestess.bot.platform.PlatformCase
 import com.heyanle.priestess.bot.provider.ProviderCase
-import com.heyanle.priestess.bot.tool.ToolController
+import com.heyanle.priestess.bot.tool.ToolCase
 
+/**
+ * 运行时健康快照提供者，汇总配置、平台、模型、工具和插件的当前状态。
+ */
 class RuntimeHealthProvider(
-    private val configController: ConfigController,
     private val configCase: ConfigCase,
-    private val platformController: PlatformController,
+    private val platformCase: PlatformCase,
     private val providerCase: ProviderCase,
-    private val toolController: ToolController,
+    private val toolCase: ToolCase,
     private val pluginCase: PluginCase,
     private val startedAtMillis: Long = System.currentTimeMillis(),
     private val availableProvidersProvider: (() -> Int)? = null,
@@ -32,7 +33,7 @@ class RuntimeHealthProvider(
 
         inspect(components, "config") {
             val config = configCase.current()
-            diagnostics["configPath"] = configController.configPath()
+            diagnostics["configPath"] = configCase.configPath()
             diagnostics["databasePath"] = config.database.path
             diagnostics["configuredPlatforms"] = config.platforms.size.toString()
             diagnostics["configuredProviders"] = config.providers.size.toString()
@@ -41,8 +42,7 @@ class RuntimeHealthProvider(
         }
 
         inspect(components, "platforms") {
-            val runningPlatforms = platformController.getRunning().size
-            diagnostics["runningPlatforms"] = runningPlatforms.toString()
+            diagnostics["runningPlatforms"] = platformCase.runningPlatformCount().toString()
         }
 
         inspect(components, "providers") {
@@ -51,7 +51,7 @@ class RuntimeHealthProvider(
         }
 
         inspect(components, "tools") {
-            diagnostics["registeredTools"] = toolController.getAll().size.toString()
+            diagnostics["registeredTools"] = toolCase.getAll().size.toString()
         }
 
         inspect(components, "plugins") {

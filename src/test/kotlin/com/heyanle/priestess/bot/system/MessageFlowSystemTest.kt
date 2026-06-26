@@ -1,12 +1,11 @@
 package com.heyanle.priestess.bot.pipeline
 
 import com.heyanle.priestess.bot.agent.AgentCase
-import com.heyanle.priestess.bot.agent.context.ContextManager
-import com.heyanle.priestess.bot.agent.context.TokenCounter
 import com.heyanle.priestess.bot.config.AgentConfig
 import com.heyanle.priestess.bot.config.PipelineConfig
 import com.heyanle.priestess.bot.conversation.MessageRole
 import com.heyanle.priestess.bot.observability.MetricsRegistry
+import com.heyanle.priestess.bot.observability.ObservabilityCase
 import com.heyanle.priestess.bot.pipeline.stages.PreProcessStage
 import com.heyanle.priestess.bot.pipeline.stages.ProcessStage
 import com.heyanle.priestess.bot.pipeline.stages.RespondStage
@@ -21,6 +20,7 @@ import com.heyanle.priestess.bot.testkit.FakePlatform
 import com.heyanle.priestess.bot.testkit.FakeProvider
 import com.heyanle.priestess.bot.testkit.FakeTool
 import com.heyanle.priestess.bot.testkit.testInMemoryConversationCase
+import com.heyanle.priestess.bot.tool.ToolCase
 import com.heyanle.priestess.bot.tool.ToolController
 import com.heyanle.priestess.bot.tool.ToolExecutor
 import com.heyanle.priestess.bot.tool.ToolResult
@@ -55,6 +55,7 @@ class MessageFlowSystemTest {
         )
         providerController.register(provider)
         val metrics = MetricsRegistry()
+        val observabilityCase = ObservabilityCase.standalone(metrics)
         val controller = PipelineController(
             testStages = listOf(
                 PreProcessStage(
@@ -62,20 +63,18 @@ class MessageFlowSystemTest {
                     pipelineConfig = PipelineConfig(maxHistoryMessages = 5),
                     conversationCase = conversationCase,
                     agentCase = AgentCase(),
-                    contextManager = ContextManager(TokenCounter()),
                 ),
                 ProcessStage(
+                    agentCase = AgentCase(),
                     providerCase = ProviderCase(providerController),
-                    toolExecutor = ToolExecutor(toolController, metrics),
-                    toolController = toolController,
-                    contextManager = ContextManager(TokenCounter()),
-                    metricsRegistry = metrics,
+                    toolCase = ToolCase(toolController),
+                    observabilityCase = observabilityCase,
                 ),
                 ResultDecorateStage(),
                 RespondStage(),
             ),
             testOnly = Unit,
-            metricsRegistry = metrics,
+            observabilityCase = observabilityCase,
         )
         val event = com.heyanle.priestess.bot.platform.MessageEvent(
             platform = platform,

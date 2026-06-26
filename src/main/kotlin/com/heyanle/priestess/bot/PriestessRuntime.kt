@@ -1,16 +1,21 @@
 package com.heyanle.priestess.bot
 
-import com.heyanle.priestess.bot.config.ConfigController
-import com.heyanle.priestess.bot.core.db.DatabaseController
-import com.heyanle.priestess.bot.pipeline.PipelineController
-import com.heyanle.priestess.bot.platform.PlatformController
+import com.heyanle.priestess.bot.config.ConfigCase
+import com.heyanle.priestess.bot.core.db.DatabaseCase
+import com.heyanle.priestess.bot.observability.ObservabilityCase
+import com.heyanle.priestess.bot.pipeline.PipelineCase
+import com.heyanle.priestess.bot.platform.PlatformCase
 import com.heyanle.priestess.bot.plugin.PluginCase
-import com.heyanle.priestess.bot.provider.ProviderController
-import com.heyanle.priestess.bot.server.PriestessBotServer
-import com.heyanle.priestess.bot.tool.ToolController
-import com.heyanle.priestess.bot.workspace.WorkspaceController
+import com.heyanle.priestess.bot.provider.ProviderCase
+import com.heyanle.priestess.bot.server.ServerCase
+import com.heyanle.priestess.bot.skill.SkillCase
+import com.heyanle.priestess.bot.tool.ToolCase
+import com.heyanle.priestess.bot.workspace.WorkspaceCase
 import io.github.oshai.kotlinlogging.KotlinLogging
 
+/**
+ * 运行时编排器，负责启动服务并按确定顺序停止各模块生命周期入口。
+ */
 class PriestessRuntime private constructor(
     private val startAction: () -> Unit,
     private val stopSteps: List<StopStep>,
@@ -18,31 +23,38 @@ class PriestessRuntime private constructor(
     private val logger = KotlinLogging.logger("PriestessRuntime")
 
     constructor(
-        platformController: PlatformController,
-        pipelineController: PipelineController,
-        server: PriestessBotServer,
+        platformCase: PlatformCase,
+        pipelineCase: PipelineCase,
+        serverCase: ServerCase,
         pluginCase: PluginCase,
-        providerController: ProviderController,
-        toolController: ToolController,
-        workspaceController: WorkspaceController,
-        databaseController: DatabaseController,
-        configController: ConfigController,
-        pipelineDrainTimeoutMillis: Long = PipelineController.DEFAULT_DRAIN_TIMEOUT_MILLIS,
+        providerCase: ProviderCase,
+        toolCase: ToolCase,
+        skillCase: SkillCase,
+        workspaceCase: WorkspaceCase,
+        observabilityCase: ObservabilityCase,
+        databaseCase: DatabaseCase,
+        configCase: ConfigCase,
+        pipelineDrainTimeoutMillis: Long = PipelineCase.DEFAULT_DRAIN_TIMEOUT_MILLIS,
     ) : this(
-        startAction = { server.start() },
+        startAction = {
+            platformCase.start()
+            serverCase.start()
+        },
         stopSteps = listOf(
-            StopStep("platforms") { platformController.stop() },
+            StopStep("platforms") { platformCase.stop() },
             StopStep("pipeline") {
-                pipelineController.drain(pipelineDrainTimeoutMillis)
-                pipelineController.stop()
+                pipelineCase.drain(pipelineDrainTimeoutMillis)
+                pipelineCase.stop()
             },
-            StopStep("server") { server.stop() },
+            StopStep("server") { serverCase.stop() },
             StopStep("plugins") { pluginCase.stop() },
-            StopStep("providers") { providerController.stop() },
-            StopStep("tools") { toolController.stop() },
-            StopStep("workspace") { workspaceController.close() },
-            StopStep("database") { databaseController.stop() },
-            StopStep("config") { configController.stop() },
+            StopStep("providers") { providerCase.stop() },
+            StopStep("tools") { toolCase.stop() },
+            StopStep("skills") { skillCase.stop() },
+            StopStep("workspace") { workspaceCase.stop() },
+            StopStep("observability") { observabilityCase.stop() },
+            StopStep("database") { databaseCase.stop() },
+            StopStep("config") { configCase.stop() },
         ),
     )
 
@@ -73,6 +85,9 @@ class PriestessRuntime private constructor(
         }
     }
 
+    /**
+     * 停止步骤，保存步骤名称和实际的挂起停止动作。
+     */
     internal data class StopStep(
         val name: String,
         val block: suspend () -> Unit,

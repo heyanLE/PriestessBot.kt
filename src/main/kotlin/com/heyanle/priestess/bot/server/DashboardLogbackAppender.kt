@@ -7,6 +7,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
+/**
+ * 仪表盘 Logback 追加器，把运行时日志转发到仪表盘日志中心。
+ */
 class DashboardLogbackAppender : AppenderBase<ILoggingEvent>() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 

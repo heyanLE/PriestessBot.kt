@@ -20,6 +20,9 @@ import com.heyanle.priestess.bot.workspace.WorkspaceReloadPlan
 import com.heyanle.priestess.bot.workspace.WorkspaceReloadResult
 import kotlinx.serialization.Serializable
 
+/**
+ * 健康检查响应，描述整体状态、组件状态和诊断信息。
+ */
 @Serializable
 data class HealthResponse(
     val status: String,
@@ -29,6 +32,9 @@ data class HealthResponse(
     val diagnostics: Map<String, String> = emptyMap(),
 )
 
+/**
+ * 平台状态 DTO，供仪表盘展示平台配置和运行状态。
+ */
 @Serializable
 data class PlatformStatusDto(
     val name: String,
@@ -40,6 +46,9 @@ data class PlatformStatusDto(
     val wsPort: Int,
 )
 
+/**
+ * 模型提供者 DTO，供仪表盘展示提供者能力。
+ */
 @Serializable
 data class ProviderDto(
     val name: String,
@@ -50,6 +59,9 @@ data class ProviderDto(
     val supportStreaming: Boolean,
 )
 
+/**
+ * 工具 DTO，供仪表盘展示工具参数、来源和启用状态。
+ */
 @Serializable
 data class ToolDto(
     val name: String,
@@ -65,6 +77,9 @@ data class ToolDto(
     val statusReason: String? = null,
 )
 
+/**
+ * 会话 DTO，供仪表盘展示平台会话摘要。
+ */
 @Serializable
 data class ConversationDto(
     val id: String,
@@ -74,6 +89,9 @@ data class ConversationDto(
     val updatedAt: Long,
 )
 
+/**
+ * 消息 DTO，供仪表盘展示历史消息和工具调用元数据。
+ */
 @Serializable
 data class MessageDto(
     val id: String,
@@ -85,12 +103,18 @@ data class MessageDto(
     val createdAt: Long,
 )
 
+/**
+ * 插件列表响应，包含插件描述和扩展元数据。
+ */
 @Serializable
 data class PluginListResponse(
     val plugins: List<PluginDescriptor>,
     val extensions: List<PluginExtensionMetadata>,
 )
 
+/**
+ * 日志事件 DTO，供仪表盘实时日志流使用。
+ */
 @Serializable
 data class LogEventDto(
     val level: String,
@@ -98,6 +122,9 @@ data class LogEventDto(
     val timestamp: Long = System.currentTimeMillis(),
 )
 
+/**
+ * 仪表盘智能体聊天请求。
+ */
 @Serializable
 data class AgentChatRequest(
     val message: String,
@@ -109,6 +136,9 @@ data class AgentChatRequest(
     val userId: String? = null,
 )
 
+/**
+ * 仪表盘智能体聊天过程事件。
+ */
 @Serializable
 data class AgentChatEventDto(
     val type: String,
@@ -120,6 +150,9 @@ data class AgentChatEventDto(
     val timestamp: Long = System.currentTimeMillis(),
 )
 
+/**
+ * 仪表盘智能体聊天响应。
+ */
 @Serializable
 data class AgentChatResponse(
     val status: String,
@@ -131,6 +164,9 @@ data class AgentChatResponse(
     val injectionTrace: AgentChatInjectionTraceDto = AgentChatInjectionTraceDto(),
 )
 
+/**
+ * 人设和记忆注入追踪 DTO。
+ */
 @Serializable
 data class AgentChatInjectionTraceDto(
     val workspaceId: String = "default",
@@ -141,6 +177,9 @@ data class AgentChatInjectionTraceDto(
     val metadata: Map<String, String> = emptyMap(),
 )
 
+/**
+ * 已注入记忆 DTO，供前端展示注入来源。
+ */
 @Serializable
 data class AgentChatInjectedMemoryDto(
     val id: String,
@@ -150,18 +189,27 @@ data class AgentChatInjectedMemoryDto(
     val contentPreview: String,
 )
 
+/**
+ * 创建知识库请求。
+ */
 @Serializable
 data class CreateKnowledgeBaseRequest(
     val name: String,
     val description: String = "",
 )
 
+/**
+ * 添加知识文档请求。
+ */
 @Serializable
 data class AddKnowledgeDocumentRequest(
     val documentName: String,
     val content: String,
 )
 
+/**
+ * 知识检索请求。
+ */
 @Serializable
 data class KnowledgeSearchRequest(
     val query: String,
@@ -169,17 +217,26 @@ data class KnowledgeSearchRequest(
     val limit: Int = 5,
 )
 
+/**
+ * 知识检索结果 DTO。
+ */
 @Serializable
 data class KnowledgeSearchResultDto(
     val chunk: KnowledgeChunk,
     val score: Double,
 )
 
+/**
+ * 知识库列表响应。
+ */
 @Serializable
 data class KnowledgeBaseListResponse(
     val bases: List<KnowledgeBase>,
 )
 
+/**
+ * 子智能体测试请求。
+ */
 @Serializable
 data class SubAgentTestRequest(
     val message: String,
@@ -187,6 +244,9 @@ data class SubAgentTestRequest(
     val conversationId: String? = null,
 )
 
+/**
+ * 子智能体测试响应。
+ */
 @Serializable
 data class SubAgentTestResponse(
     val status: String,
@@ -198,11 +258,17 @@ data class SubAgentTestResponse(
     val conversationId: String,
 )
 
+/**
+ * 工作区列表响应。
+ */
 @Serializable
 data class WorkspaceListResponse(
     val workspaces: List<WorkspaceStatusDto>,
 )
 
+/**
+ * 工作区状态 DTO。
+ */
 @Serializable
 data class WorkspaceStatusDto(
     val id: String,
@@ -214,6 +280,9 @@ data class WorkspaceStatusDto(
     val diagnostics: List<String> = emptyList(),
 )
 
+/**
+ * 工作区详情 DTO。
+ */
 @Serializable
 data class WorkspaceDetailDto(
     val status: WorkspaceStatusDto,
@@ -229,6 +298,9 @@ data class WorkspaceDetailDto(
     val reloadPlan: WorkspaceReloadPlan? = null,
 )
 
+/**
+ * 工作区 MCP 服务摘要 DTO。
+ */
 @Serializable
 data class WorkspaceMcpServerSummaryDto(
     val id: String,
@@ -238,17 +310,26 @@ data class WorkspaceMcpServerSummaryDto(
     val url: String = "",
 )
 
+/**
+ * 工作区资源列表响应。
+ */
 @Serializable
 data class WorkspaceResourceListResponse(
     val workspaceId: String,
     val resources: List<String>,
 )
 
+/**
+ * 人设列表响应。
+ */
 @Serializable
 data class PersonaListResponse(
     val personas: List<Persona>,
 )
 
+/**
+ * 人设创建或更新 DTO。
+ */
 @Serializable
 data class PersonaUpsertDto(
     val id: String? = null,
@@ -262,22 +343,34 @@ data class PersonaUpsertDto(
     val agentNames: List<String> = emptyList(),
 )
 
+/**
+ * 人设解析请求。
+ */
 @Serializable
 data class PersonaResolveRequest(
     val workspaceId: String = "default",
     val agentName: String,
 )
 
+/**
+ * 人设解析响应。
+ */
 @Serializable
 data class PersonaResolveResponse(
     val persona: Persona?,
 )
 
+/**
+ * 记忆列表响应。
+ */
 @Serializable
 data class MemoryListResponse(
     val memories: List<MemoryRecord>,
 )
 
+/**
+ * 记忆保存请求。
+ */
 @Serializable
 data class MemorySaveRequest(
     val content: String,
@@ -293,6 +386,9 @@ data class MemorySaveRequest(
     val expiresAt: Long? = null,
 )
 
+/**
+ * 记忆检索请求。
+ */
 @Serializable
 data class MemorySearchRequest(
     val query: String,
@@ -306,16 +402,25 @@ data class MemorySearchRequest(
     val limit: Int = 10,
 )
 
+/**
+ * 记忆检索响应。
+ */
 @Serializable
 data class MemorySearchResponse(
     val results: List<MemorySearchResult>,
 )
 
+/**
+ * 删除操作响应。
+ */
 @Serializable
 data class DeleteResponse(
     val deleted: Boolean,
 )
 
+/**
+ * 过期记忆清理响应。
+ */
 @Serializable
 data class ExpireMemoryResponse(
     val expired: Int,

@@ -2,6 +2,9 @@ package com.heyanle.priestess.bot.provider.model
 
 import kotlinx.serialization.Serializable
 
+/**
+ * 提供给模型的对话消息，兼容 system/user/assistant/tool 等角色。
+ */
 @Serializable
 data class ConversationMessage(
     val role: String,

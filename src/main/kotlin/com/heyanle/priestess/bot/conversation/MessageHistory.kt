@@ -2,12 +2,15 @@ package com.heyanle.priestess.bot.conversation
 
 import com.heyanle.priestess.bot.core.db.ConversationsTable
 import com.heyanle.priestess.bot.core.db.MessagesTable
-import com.heyanle.priestess.bot.core.db.DatabaseController
+import com.heyanle.priestess.bot.core.db.DatabaseCase
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicLong
 
+/**
+ * 消息角色，标识历史消息在对话中的来源和用途。
+ */
 enum class MessageRole(val label: String) {
     USER("user"),
     ASSISTANT("assistant"),
@@ -15,6 +18,9 @@ enum class MessageRole(val label: String) {
     TOOL("tool"),
 }
 
+/**
+ * 已持久化消息记录，包含文本、工具调用和写入时间等数据库字段。
+ */
 data class StoredMessage(
     val id: String,
     val conversationId: String,
@@ -25,6 +31,9 @@ data class StoredMessage(
     val createdAt: Long,
 )
 
+/**
+ * 会话消息搜索条件，用于按会话、平台、角色和时间范围筛选历史消息。
+ */
 data class ConversationMessageSearchQuery(
     val conversationId: String? = null,
     val platform: String? = null,
@@ -36,14 +45,20 @@ data class ConversationMessageSearchQuery(
     val limit: Int = 20,
 )
 
+/**
+ * 会话消息搜索结果，聚合命中的消息、所属会话和展示片段。
+ */
 data class ConversationSearchResult(
     val message: StoredMessage,
     val conversation: Conversation,
     val snippet: String,
 )
 
+/**
+ * 消息历史仓库，负责写入、读取、搜索和删除会话消息记录。
+ */
 class MessageHistory(
-    private val db: DatabaseController,
+    private val db: DatabaseCase,
 ) {
     private val lastStoredAt = AtomicLong(0L)
 

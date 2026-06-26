@@ -1,19 +1,22 @@
 package com.heyanle.priestess.bot.workspace
 
 import com.heyanle.priestess.bot.config.AgentConfig
+import com.heyanle.priestess.bot.core.controller.BaseController
 import com.heyanle.priestess.bot.skill.SkillCase
-import com.heyanle.priestess.bot.tool.ToolController
-import com.heyanle.priestess.bot.tool.ToolListing
+import com.heyanle.priestess.bot.tool.ToolCase
 import com.heyanle.priestess.bot.tool.ToolListingFilters
 import java.util.concurrent.atomic.AtomicLong
 
+/**
+ * 工作区控制器，负责加载、校验、发布和回收工作区运行快照。
+ */
 class WorkspaceController(
     private val source: WorkspaceConfigSource,
-    private val toolController: ToolController,
+    private val toolCase: ToolCase,
     private val skillCase: SkillCase,
     private val mcpToolResolver: WorkspaceMcpToolResolver = WorkspaceMcpToolResolver.Noop,
     private val nowProvider: () -> Long = System::currentTimeMillis,
-) {
+) : BaseController("WorkspaceController") {
     private val versionCounter = AtomicLong(0)
     private val lock = Any()
     private val snapshots = linkedMapOf<String, WorkspaceSnapshot>()
@@ -21,6 +24,7 @@ class WorkspaceController(
     private val lastReloads = linkedMapOf<String, WorkspaceReloadResult>()
     private val snapshotRefs = linkedMapOf<WorkspaceSnapshotKey, Int>()
     private val retiredSnapshots = linkedSetOf<WorkspaceSnapshotKey>()
+    private val closedSnapshotKeys = linkedSetOf<WorkspaceSnapshotKey>()
 
     init {
         reloadAll()
@@ -102,6 +106,11 @@ class WorkspaceController(
         }
     }
 
+    override suspend fun stop() {
+        close()
+        super.stop()
+    }
+
     fun validate(workspaces: List<WorkspaceConfig>): WorkspaceValidationResult {
         val diagnostics = mutableListOf<String>()
         if (workspaces.isEmpty()) {
@@ -116,7 +125,7 @@ class WorkspaceController(
             duplicateSkillNames.forEach { diagnostics += "Workspace '${config.id}' has duplicate skill '$it'" }
             val unknownSkills = config.skills.filter { it.enabled }.map { it.name } - skillCase.getAll().map { it.name }.toSet()
             unknownSkills.forEach { diagnostics += "Workspace '${config.id}' references unknown skill '$it'" }
-            val knownTools = toolController.getAll().map { it.schema.name }.toSet()
+            val knownTools = toolCase.getAll().map { it.schema.name }.toSet()
             val unknownEnabledTools = config.tools.enabledTools.filter { it !in knownTools }
             unknownEnabledTools.forEach { diagnostics += "Workspace '${config.id}' references unknown enabled tool '$it'" }
             val unknownDisabledTools = config.tools.disabledTools.filter { it !in knownTools }
@@ -226,10 +235,8 @@ class WorkspaceController(
     }
 
     private fun scopedToolNames(config: WorkspaceConfig, hasVisibleSkills: Boolean): List<String> {
-        val allTools = ToolListing.list(
-            registeredTools = toolController.getRegisteredTools(),
-            filters = ToolListingFilters(includeHighRisk = true),
-        ).filter { it.statusReason == null }
+        val allTools = toolCase.list(ToolListingFilters(includeHighRisk = true))
+            .filter { it.statusReason == null }
         val controlTools = if (hasVisibleSkills) setOf("use_skill", "unload_skill") else emptySet()
         val registeredControlTools = controlTools.intersect(allTools.map { it.name }.toSet())
         val enabled = config.tools.enabledTools.toSet() + registeredControlTools
@@ -329,7 +336,7 @@ class WorkspaceController(
     private fun tryCloseSnapshotLocked(snapshot: WorkspaceSnapshot) {
         val key = snapshot.key()
         val current = snapshotRefs[key] ?: 0
-        if (current <= 0 && retiredSnapshots.remove(key)) {
+        if (current <= 0 && retiredSnapshots.remove(key) && closedSnapshotKeys.add(key)) {
             snapshot.closeMcpHandles()
         }
     }

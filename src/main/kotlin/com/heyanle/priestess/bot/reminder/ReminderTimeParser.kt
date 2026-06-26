@@ -7,6 +7,9 @@ import java.time.ZonedDateTime
 import java.time.format.DateTimeParseException
 import kotlin.math.max
 
+/**
+ * 提醒时间解析器，支持相对时间和标准绝对时间格式。
+ */
 object ReminderTimeParser {
     private val compactRelative = Regex("""^\s*(?:in\s*)?(\d+)\s*(s|sec|secs|second|seconds|m|min|mins|minute|minutes|h|hr|hrs|hour|hours|d|day|days)\s*$""", RegexOption.IGNORE_CASE)
 

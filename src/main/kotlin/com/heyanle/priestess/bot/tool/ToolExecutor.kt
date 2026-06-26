@@ -1,30 +1,29 @@
 package com.heyanle.priestess.bot.tool
 
-import com.heyanle.priestess.bot.observability.MetricsRegistry
+import com.heyanle.priestess.bot.observability.ObservabilityCase
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 
 /**
- * Executes tool calls by resolving tool names, validating arguments,
- * and invoking the corresponding [FunctionTool.execute].
+ * 工具执行器，负责解析工具名、校验参数、执行工具并记录调用指标。
  */
 class ToolExecutor(
     private val registry: ToolController,
-    private val metricsRegistry: MetricsRegistry = MetricsRegistry(),
+    private val observabilityCase: ObservabilityCase = ObservabilityCase.standalone(),
     private val policy: ToolPolicy = ToolPolicy.allowAll(),
     private val defaultTimeoutMillis: Long = DEFAULT_TIMEOUT_MILLIS,
 ) {
     private val json = Json { ignoreUnknownKeys = true }
 
     /**
-     * Execute a single tool call.
+     * 执行单个工具调用。
      *
-     * @param context The agent tool context.
-     * @param toolCallName The name of the tool to call.
-     * @param argumentsJson The arguments as a JSON string (from LLM tool call).
-     * @return ToolResult with success/error status.
+     * @param context 智能体工具上下文。
+     * @param toolCallName 工具调用名称。
+     * @param argumentsJson LLM 工具调用传入的 JSON 参数。
+     * @return 带成功或错误状态的工具结果。
      */
     suspend fun execute(
         context: AgentToolContext,
@@ -98,11 +97,11 @@ class ToolExecutor(
     }
 
     /**
-     * Execute multiple tool calls in sequence.
+     * 按顺序执行多个工具调用。
      *
-     * @param context The agent tool context.
-     * @param toolCalls List of (toolCallId, toolCallName, argumentsJson) tuples.
-     * @return Map of toolCallId to ToolResult.
+     * @param context 智能体工具上下文。
+     * @param toolCalls (工具调用 ID、工具名、参数 JSON) 三元组列表。
+     * @return 工具调用 ID 到执行结果的映射。
      */
     suspend fun executeBatch(
         context: AgentToolContext,
@@ -117,10 +116,7 @@ class ToolExecutor(
     }
 
     private fun recordToolCall(toolName: String, status: String) {
-        metricsRegistry.incrementCounter(
-            "priestess_tool_calls_total",
-            mapOf("tool" to toolName, "status" to status),
-        )
+        observabilityCase.recordToolCall(toolName, status)
     }
 
     private fun workspaceToolNames(context: AgentToolContext): Set<String>? {
@@ -134,7 +130,7 @@ class ToolExecutor(
     }
 
     /**
-     * Parse a JSON string of arguments into a Map<String, String>.
+     * 把 JSON 参数字符串解析为字符串键值表。
      */
     private fun parseArguments(argumentsJson: String): Map<String, String> {
         if (argumentsJson.isBlank()) return emptyMap()
@@ -144,10 +140,10 @@ class ToolExecutor(
 
         val result = mutableMapOf<String, String>()
         for ((key, value) in jsonObj) {
-            // Convert JSON values to their string representation
+            // 将 JSON 值统一转换为字符串形式。
             result[key] = when {
                 value.toString().startsWith("\"") -> {
-                    // String value: strip quotes
+                    // 字符串值去掉外层引号。
                     value.toString().removeSurrounding("\"")
                 }
                 else -> value.toString()

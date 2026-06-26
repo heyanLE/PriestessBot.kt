@@ -1,5 +1,8 @@
 package com.heyanle.priestess.bot.conversation
 
+/**
+ * 会话模块门面，协调会话记录和消息历史供流水线、服务端与工具模块使用。
+ */
 class ConversationCase(
     private val controller: ConversationController,
     private val history: MessageHistory,

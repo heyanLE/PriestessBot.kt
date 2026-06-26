@@ -2,6 +2,9 @@ package com.heyanle.priestess.bot.reminder
 
 import com.heyanle.priestess.bot.platform.Platform
 
+/**
+ * 提醒模块门面，向外提供提醒创建、查询、删除和到期投递能力。
+ */
 class ReminderCase(
     private val controller: ReminderController,
 ) {

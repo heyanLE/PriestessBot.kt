@@ -4,32 +4,35 @@ import com.heyanle.priestess.bot.conversation.ConversationCase
 import com.heyanle.priestess.bot.knowledge.KnowledgeCase
 import com.heyanle.priestess.bot.memory.MemoryCase
 import com.heyanle.priestess.bot.reminder.ReminderCase
-import com.heyanle.priestess.bot.server.RuntimeHealthProvider
+import com.heyanle.priestess.bot.server.ServerCase
 import com.heyanle.priestess.bot.tool.FunctionTool
-import com.heyanle.priestess.bot.tool.ToolMetadata
-import com.heyanle.priestess.bot.tool.ToolController
+import com.heyanle.priestess.bot.tool.ToolCase
 
 /**
- * Registers all built-in tools into the [ToolController].
+ * 注册所有内置工具，并通过工具模块门面保留实时注册表视图。
  */
 fun registerBuiltinTools(
-    registry: ToolController,
+    registry: ToolCase,
     knowledgeCaseProvider: (() -> KnowledgeCase)? = null,
-    healthProvider: (() -> RuntimeHealthProvider)? = null,
+    serverCaseProvider: (() -> ServerCase)? = null,
     conversationCaseProvider: (() -> ConversationCase)? = null,
     memoryCaseProvider: (() -> MemoryCase)? = null,
     reminderCaseProvider: (() -> ReminderCase)? = null,
 ) {
     fun register(tool: FunctionTool, statusReason: String? = null) {
-        registry.register(tool, ToolMetadata(statusReason = statusReason))
+        registry.registerBuiltinTool(tool, statusReason)
     }
 
     register(ListToolsTool(registeredToolsProvider = { registry.getRegisteredTools() }))
     register(UseSkillTool())
     register(UnloadSkillTool())
     register(
-        HealthCheckTool(healthProvider ?: { error("Health dependency is unavailable") }),
-        statusReason = if (healthProvider == null) "Requires health dependency" else null,
+        HealthCheckTool(
+            serverCaseProvider
+                ?.let { provider -> { provider().healthSnapshotJson() } }
+                ?: { error("Health dependency is unavailable") },
+        ),
+        statusReason = if (serverCaseProvider == null) "Requires health dependency" else null,
     )
     register(FetchUrlTool())
     register(

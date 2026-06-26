@@ -2,6 +2,9 @@ package com.heyanle.priestess.bot.skill
 
 import com.heyanle.priestess.bot.workspace.WorkspaceSnapshot
 
+/**
+ * 技能模块门面，负责对外提供技能分发、注册和工作区技能提示状态。
+ */
 class SkillCase(
     private val controller: SkillController,
 ) {
@@ -29,8 +32,15 @@ class SkillCase(
             settings = settings,
         )
     }
+
+    suspend fun stop() {
+        controller.stop()
+    }
 }
 
+/**
+ * 工作区技能集合，负责按优先级分发消息并渲染可注入提示文档。
+ */
 class WorkspaceSkillSet(
     val workspaceId: String,
     private val skills: List<Skill>,

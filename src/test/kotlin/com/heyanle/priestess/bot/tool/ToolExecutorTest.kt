@@ -1,6 +1,7 @@
 package com.heyanle.priestess.bot.tool
 
 import com.heyanle.priestess.bot.observability.MetricsRegistry
+import com.heyanle.priestess.bot.observability.ObservabilityCase
 import com.heyanle.priestess.bot.testkit.FakeTool
 import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
@@ -174,10 +175,11 @@ class ToolExecutorTest {
         controller.register(FakeTool(name = "success_tool", result = ToolResult.success("ok")))
         controller.register(FakeTool(name = "failure_tool", result = ToolResult.error("bad")))
         controller.register(FakeTool(name = "timeout_tool", delayMs = 100))
-        val executor = ToolExecutor(controller, metrics, defaultTimeoutMillis = 10)
+        val observabilityCase = ObservabilityCase.standalone(metrics)
+        val executor = ToolExecutor(controller, observabilityCase, defaultTimeoutMillis = 10)
         val deniedExecutor = ToolExecutor(
             registry = controller,
-            metricsRegistry = metrics,
+            observabilityCase = observabilityCase,
             policy = ToolPolicy { _, tool, _ ->
                 if (tool.schema.name == "denied_tool") {
                     ToolPolicyDecision.denied(

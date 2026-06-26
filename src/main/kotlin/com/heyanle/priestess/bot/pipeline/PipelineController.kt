@@ -1,12 +1,11 @@
 package com.heyanle.priestess.bot.pipeline
 
 import com.heyanle.priestess.bot.agent.AgentCase
-import com.heyanle.priestess.bot.agent.context.ContextManager
 import com.heyanle.priestess.bot.agent.orchestration.SubAgentOrchestrator
 import com.heyanle.priestess.bot.config.ConfigCase
 import com.heyanle.priestess.bot.conversation.ConversationCase
 import com.heyanle.priestess.bot.core.controller.BaseController
-import com.heyanle.priestess.bot.observability.MetricsRegistry
+import com.heyanle.priestess.bot.observability.ObservabilityCase
 import com.heyanle.priestess.bot.pipeline.stages.ContentSafetyStage
 import com.heyanle.priestess.bot.pipeline.stages.PreProcessStage
 import com.heyanle.priestess.bot.pipeline.stages.ProcessStage
@@ -20,9 +19,8 @@ import com.heyanle.priestess.bot.persona.PersonaMemoryInjector
 import com.heyanle.priestess.bot.platform.MessageEvent
 import com.heyanle.priestess.bot.provider.ProviderCase
 import com.heyanle.priestess.bot.skill.SkillCase
-import com.heyanle.priestess.bot.tool.ToolController
-import com.heyanle.priestess.bot.tool.ToolExecutor
-import com.heyanle.priestess.bot.workspace.WorkspaceController
+import com.heyanle.priestess.bot.tool.ToolCase
+import com.heyanle.priestess.bot.workspace.WorkspaceCase
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
@@ -32,16 +30,13 @@ import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.withTimeoutOrNull
 
 /**
- * Owns the ordered message-processing stage pipeline.
+ * 消息流水线控制器，负责按固定顺序组织阶段并承接系统生命周期。
  *
- * Stages are constructed inside this controller instead of being registered in DI,
- * keeping pipeline ordering and composition as an internal implementation detail.
- * Incoming platform messages enter through PipelineCase and are processed on this
- * controller's task scope.
+ * 阶段组合保留在控制器内部，外部只通过 PipelineCase 投递平台消息。
  */
 class PipelineController private constructor(
     private val stageProvider: () -> List<Stage>,
-    private val metricsRegistry: MetricsRegistry = MetricsRegistry(),
+    private val observabilityCase: ObservabilityCase = ObservabilityCase.standalone(),
     private val drainTimeoutMillis: Long = DEFAULT_DRAIN_TIMEOUT_MILLIS,
 ) : BaseController("PipelineController") {
 
@@ -53,39 +48,35 @@ class PipelineController private constructor(
         configCase: ConfigCase,
         conversationCase: ConversationCase,
         agentCase: AgentCase,
-        contextManager: ContextManager,
         providerCase: ProviderCase,
-        toolExecutor: ToolExecutor,
-        toolController: ToolController,
+        toolCase: ToolCase,
         skillCase: SkillCase? = null,
         subAgentOrchestrator: SubAgentOrchestrator? = null,
-        workspaceController: WorkspaceController? = null,
+        workspaceCase: WorkspaceCase? = null,
         personaMemoryInjector: PersonaMemoryInjector? = null,
-        metricsRegistry: MetricsRegistry = MetricsRegistry(),
+        observabilityCase: ObservabilityCase = ObservabilityCase.standalone(),
         drainTimeoutMillis: Long = DEFAULT_DRAIN_TIMEOUT_MILLIS,
     ) : this({
         buildStages(
             configCase = configCase,
             conversationCase = conversationCase,
             agentCase = agentCase,
-            contextManager = contextManager,
             providerCase = providerCase,
-            toolExecutor = toolExecutor,
-            toolController = toolController,
+            toolCase = toolCase,
             skillCase = skillCase,
             subAgentOrchestrator = subAgentOrchestrator,
-            workspaceController = workspaceController,
+            workspaceCase = workspaceCase,
             personaMemoryInjector = personaMemoryInjector,
-            metricsRegistry = metricsRegistry,
+            observabilityCase = observabilityCase,
         )
-    }, metricsRegistry, drainTimeoutMillis)
+    }, observabilityCase, drainTimeoutMillis)
 
     internal constructor(
         testStages: List<Stage>,
         @Suppress("UNUSED_PARAMETER") testOnly: Unit,
-        metricsRegistry: MetricsRegistry = MetricsRegistry(),
+        observabilityCase: ObservabilityCase = ObservabilityCase.standalone(),
         drainTimeoutMillis: Long = DEFAULT_DRAIN_TIMEOUT_MILLIS,
-    ) : this({ testStages }, metricsRegistry, drainTimeoutMillis)
+    ) : this({ testStages }, observabilityCase, drainTimeoutMillis)
 
     fun process(event: MessageEvent): Job {
         if (shuttingDown) {
@@ -123,15 +114,7 @@ class PipelineController private constructor(
                 status = "failed"
                 throw e
             } finally {
-                metricsRegistry.incrementCounter(
-                    "priestess_pipeline_messages_total",
-                    mapOf("platform" to platformName, "status" to status),
-                )
-                metricsRegistry.recordDuration(
-                    "priestess_pipeline_duration_milliseconds",
-                    mapOf("platform" to platformName, "status" to status),
-                    elapsedMillis(startedAtNanos),
-                )
+                observabilityCase.recordPipelineMessage(platformName, status, elapsedMillis(startedAtNanos))
             }
         }
         synchronized(activeMessageJobs) {
@@ -206,15 +189,13 @@ class PipelineController private constructor(
             configCase: ConfigCase,
             conversationCase: ConversationCase,
             agentCase: AgentCase,
-            contextManager: ContextManager,
             providerCase: ProviderCase,
-            toolExecutor: ToolExecutor,
-            toolController: ToolController,
+            toolCase: ToolCase,
             skillCase: SkillCase?,
             subAgentOrchestrator: SubAgentOrchestrator?,
-            workspaceController: WorkspaceController?,
+            workspaceCase: WorkspaceCase?,
             personaMemoryInjector: PersonaMemoryInjector?,
-            metricsRegistry: MetricsRegistry,
+            observabilityCase: ObservabilityCase,
         ): List<Stage> {
             val config = configCase.current()
             return listOf(
@@ -229,18 +210,16 @@ class PipelineController private constructor(
                     pipelineConfig = config.pipeline,
                     conversationCase = conversationCase,
                     agentCase = agentCase,
-                    contextManager = contextManager,
                     subAgentOrchestrator = subAgentOrchestrator,
-                    workspaceController = workspaceController,
+                    workspaceCase = workspaceCase,
                     personaMemoryInjector = personaMemoryInjector,
                     skillCase = skillCase,
                 ),
                 ProcessStage(
+                    agentCase = agentCase,
                     providerCase = providerCase,
-                    toolExecutor = toolExecutor,
-                    toolController = toolController,
-                    contextManager = contextManager,
-                    metricsRegistry = metricsRegistry,
+                    toolCase = toolCase,
+                    observabilityCase = observabilityCase,
                 ),
                 ResultDecorateStage(),
                 RespondStage(),

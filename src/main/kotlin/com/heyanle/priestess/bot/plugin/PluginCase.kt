@@ -1,5 +1,8 @@
 package com.heyanle.priestess.bot.plugin
 
+/**
+ * 插件模块门面，向其他模块提供插件生命周期操作和扩展查询能力。
+ */
 class PluginCase(
     private val controller: PluginController,
     private val extensionRegistry: PluginExtensionRegistry,

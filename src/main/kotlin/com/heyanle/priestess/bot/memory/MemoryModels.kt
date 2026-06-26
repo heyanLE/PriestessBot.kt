@@ -2,6 +2,9 @@ package com.heyanle.priestess.bot.memory
 
 import kotlinx.serialization.Serializable
 
+/**
+ * 记忆作用域，描述一条记忆对哪些上下文可见。
+ */
 @Serializable
 enum class MemoryScope {
     GLOBAL,
@@ -11,6 +14,9 @@ enum class MemoryScope {
     AGENT,
 }
 
+/**
+ * 记忆类型，描述记忆内容的业务分类。
+ */
 @Serializable
 enum class MemoryType {
     FACT,
@@ -19,6 +25,9 @@ enum class MemoryType {
     SUMMARY,
 }
 
+/**
+ * 记忆记录，保存可检索的长期上下文内容及其作用域信息。
+ */
 @Serializable
 data class MemoryRecord(
     val id: String,
@@ -38,6 +47,9 @@ data class MemoryRecord(
     val deletedAt: Long? = null,
 )
 
+/**
+ * 记忆作用域上下文，用于判断记录是否对当前会话或用户可见。
+ */
 data class MemoryScopeContext(
     val workspaceId: String = DEFAULT_WORKSPACE_ID,
     val platformId: String? = null,
@@ -50,6 +62,9 @@ data class MemoryScopeContext(
     }
 }
 
+/**
+ * 记忆列表过滤条件，用于按上下文、类型、标签和状态筛选记录。
+ */
 data class MemoryFilter(
     val scopeContext: MemoryScopeContext,
     val type: MemoryType? = null,
@@ -60,6 +75,9 @@ data class MemoryFilter(
     val limit: Int = 50,
 )
 
+/**
+ * 记忆检索请求，描述检索关键词、上下文和结果限制。
+ */
 data class MemorySearchQuery(
     val query: String,
     val scopeContext: MemoryScopeContext,
@@ -69,6 +87,9 @@ data class MemorySearchQuery(
     val nowMillis: Long = System.currentTimeMillis(),
 )
 
+/**
+ * 记忆检索结果，包含命中的记录、得分和匹配原因。
+ */
 @Serializable
 data class MemorySearchResult(
     val record: MemoryRecord,

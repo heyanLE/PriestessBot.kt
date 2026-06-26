@@ -2,27 +2,27 @@ package com.heyanle.priestess.bot.pipeline.stages
 
 import com.heyanle.priestess.bot.agent.AgentHooks
 import com.heyanle.priestess.bot.agent.AgentResponse
-import com.heyanle.priestess.bot.agent.context.ContextManager
-import com.heyanle.priestess.bot.agent.runner.ReActRunner
-import com.heyanle.priestess.bot.observability.MetricsRegistry
+import com.heyanle.priestess.bot.agent.AgentCase
+import com.heyanle.priestess.bot.observability.ObservabilityCase
 import com.heyanle.priestess.bot.pipeline.PipelineContext
 import com.heyanle.priestess.bot.pipeline.Stage
 import com.heyanle.priestess.bot.pipeline.StageOrder
 import com.heyanle.priestess.bot.provider.ProviderCase
 import com.heyanle.priestess.bot.provider.model.ConversationMessage
-import com.heyanle.priestess.bot.tool.ToolController
-import com.heyanle.priestess.bot.tool.ToolExecutor
+import com.heyanle.priestess.bot.tool.ToolCase
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 
+/**
+ * 执行阶段，负责选择模型供应商并通过 AgentCase 完成一次消息处理。
+ */
 class ProcessStage(
+    private val agentCase: AgentCase,
     private val providerCase: ProviderCase,
-    private val toolExecutor: ToolExecutor,
-    private val toolController: ToolController,
-    private val contextManager: ContextManager,
+    private val toolCase: ToolCase,
     private val hooks: AgentHooks? = null,
-    private val metricsRegistry: MetricsRegistry = MetricsRegistry(),
+    private val observabilityCase: ObservabilityCase = ObservabilityCase.standalone(),
 ) : Stage {
 
     private val logger = KotlinLogging.logger {}
@@ -56,31 +56,20 @@ class ProcessStage(
         agentContext.messages.add(ConversationMessage.user(ctx.textContent))
         logger.info {
             "[PIPELINE-210] Process selected provider=${provider.metadata.name}, agent=${agent.name}, " +
-                "model=${agent.model}, messages=${agentContext.messages.size}, tools=${toolController.size()}"
+                "model=${agent.model}, messages=${agentContext.messages.size}, tools=${toolCase.size()}"
         }
-
-        val runner = ReActRunner(
-            context = agentContext,
-            provider = provider,
-            toolExecutor = toolExecutor,
-            toolRegistry = toolController,
-            contextManager = contextManager,
-            hooks = hooks,
-        )
 
         logger.info { "[PIPELINE-220] Process executing ReAct loop agent=${agent.name}, model=${agent.model}" }
         val startedAtNanos = System.nanoTime()
-        val response = runner.stepUntilDone()
+        val response = agentCase.runWithProvider(
+            context = agentContext,
+            provider = provider,
+            toolCase = toolCase,
+            hooks = hooks,
+        )
+
         val status = if (response is AgentResponse.Error) "error" else "success"
-        metricsRegistry.incrementCounter(
-            "priestess_llm_requests_total",
-            mapOf("provider" to provider.metadata.name, "status" to status),
-        )
-        metricsRegistry.recordDuration(
-            "priestess_llm_request_duration_milliseconds",
-            mapOf("provider" to provider.metadata.name, "status" to status),
-            elapsedMillis(startedAtNanos),
-        )
+        observabilityCase.recordLlmRequest(provider.metadata.name, status, elapsedMillis(startedAtNanos))
         ctx.agentResponse = response
 
         when (response) {

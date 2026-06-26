@@ -1,6 +1,7 @@
 package com.heyanle.priestess.bot.memory
 
-import com.heyanle.priestess.bot.core.db.DatabaseController
+import com.heyanle.priestess.bot.core.controller.BaseController
+import com.heyanle.priestess.bot.core.db.DatabaseCase
 import com.heyanle.priestess.bot.core.db.MemoryRecordsTable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -12,9 +13,12 @@ import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.update
 import java.util.UUID
 
+/**
+ * 记忆控制器，负责记忆记录的持久化、可见性过滤和检索评分。
+ */
 class MemoryController(
-    private val db: DatabaseController,
-) {
+    private val db: DatabaseCase,
+) : BaseController("MemoryController") {
     private val json = Json {
         ignoreUnknownKeys = true
         encodeDefaults = true

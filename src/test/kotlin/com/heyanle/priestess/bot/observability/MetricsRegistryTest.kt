@@ -1,9 +1,8 @@
 package com.heyanle.priestess.bot.observability
 
 import com.heyanle.priestess.bot.agent.Agent
+import com.heyanle.priestess.bot.agent.AgentCase
 import com.heyanle.priestess.bot.agent.AgentContext
-import com.heyanle.priestess.bot.agent.context.ContextManager
-import com.heyanle.priestess.bot.agent.context.TokenCounter
 import com.heyanle.priestess.bot.config.ConfigCase
 import com.heyanle.priestess.bot.config.ConfigController
 import com.heyanle.priestess.bot.pipeline.PipelineContext
@@ -27,6 +26,7 @@ import com.heyanle.priestess.bot.provider.model.LLMResponse
 import com.heyanle.priestess.bot.provider.model.ConversationMessage
 import com.heyanle.priestess.bot.tool.AgentToolContext
 import com.heyanle.priestess.bot.tool.FunctionTool
+import com.heyanle.priestess.bot.tool.ToolCase
 import com.heyanle.priestess.bot.tool.ToolController
 import com.heyanle.priestess.bot.tool.ToolExecutor
 import com.heyanle.priestess.bot.tool.ToolResult
@@ -70,7 +70,7 @@ class MetricsRegistryTest {
     @Test
     fun `pipeline records message count and duration without message labels`() = runBlocking {
         val registry = MetricsRegistry()
-        val controller = PipelineController(listOf(NoopStage()), Unit, registry)
+        val controller = PipelineController(listOf(NoopStage()), Unit, ObservabilityCase.standalone(registry))
 
         controller.process(messageEvent("secret prompt")).join()
 
@@ -84,14 +84,14 @@ class MetricsRegistryTest {
     @Test
     fun `process stage records llm metrics`() = runBlocking {
         val registry = MetricsRegistry()
+        val observabilityCase = ObservabilityCase.standalone(registry)
         val providerController = ProviderController(configCase = ConfigCase(ConfigController(tempConfigPath())))
         providerController.register(MetricsProvider())
         val stage = ProcessStage(
+            agentCase = AgentCase(),
             providerCase = ProviderCase(providerController),
-            toolExecutor = ToolExecutor(ToolController(), registry),
-            toolController = ToolController(),
-            contextManager = ContextManager(TokenCounter()),
-            metricsRegistry = registry,
+            toolCase = ToolCase(ToolController()),
+            observabilityCase = observabilityCase,
         )
         val ctx = PipelineContext(messageEvent("hello")).also {
             it.agentContext = AgentContext(
@@ -122,7 +122,7 @@ class MetricsRegistryTest {
         val registry = MetricsRegistry()
         val toolController = ToolController()
         toolController.register(MetricsTool())
-        val executor = ToolExecutor(toolController, registry)
+        val executor = ToolExecutor(toolController, ObservabilityCase.standalone(registry))
 
         executor.execute(AgentToolContext(agentName = "metrics-agent"), "metrics_tool", """{"secret":"value"}""")
         executor.execute(AgentToolContext(agentName = "metrics-agent"), "missing_tool", "{}")

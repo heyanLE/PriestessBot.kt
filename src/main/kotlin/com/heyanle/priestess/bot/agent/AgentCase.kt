@@ -1,24 +1,35 @@
 package com.heyanle.priestess.bot.agent
 
+import com.heyanle.priestess.bot.agent.context.ContextManager
+import com.heyanle.priestess.bot.agent.context.TokenCounter
+import com.heyanle.priestess.bot.agent.runner.ReActRunner
 import com.heyanle.priestess.bot.config.AgentConfig
+import com.heyanle.priestess.bot.provider.ChatProvider
+import com.heyanle.priestess.bot.tool.ToolCase
 
-class AgentCase {
+/**
+ * Agent 模块门面，向外提供运行时 Agent 创建和执行能力。
+ */
+class AgentCase(
+    private val controller: AgentController = AgentController(),
+    private val contextManager: ContextManager = ContextManager(TokenCounter()),
+) {
     fun createAgent(config: AgentConfig): Agent {
-        val compressStrategy = when (config.compressStrategy.lowercase()) {
-            "token_window" -> CompressStrategy.TOKEN_WINDOW
-            "llm_compress" -> CompressStrategy.LLM_COMPRESS
-            else -> CompressStrategy.ROUND_TRUNCATION
-        }
+        return controller.createAgent(config)
+    }
 
-        return Agent(
-            name = config.name,
-            instructions = config.instructions,
-            model = config.model,
-            maxSteps = config.maxSteps,
-            toolTimeoutMs = config.toolTimeoutSeconds * 1000,
-            compressStrategy = compressStrategy,
-            maxContextTokens = config.maxTokens,
-            maxContextRounds = config.maxRounds,
-        )
+    suspend fun runWithProvider(
+        context: AgentContext,
+        provider: ChatProvider,
+        toolCase: ToolCase,
+        hooks: AgentHooks? = null,
+    ): AgentResponse {
+        return ReActRunner(
+            context = context,
+            provider = provider,
+            toolCase = toolCase,
+            contextManager = contextManager,
+            hooks = hooks,
+        ).stepUntilDone()
     }
 }

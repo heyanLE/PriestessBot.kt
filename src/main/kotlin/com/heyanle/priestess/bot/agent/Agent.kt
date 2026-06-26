@@ -1,5 +1,8 @@
 package com.heyanle.priestess.bot.agent
 
+/**
+ * 运行时 Agent 定义，描述模型、提示词、工具步数和上下文压缩策略。
+ */
 data class Agent(
     val name: String,
     val instructions: String,

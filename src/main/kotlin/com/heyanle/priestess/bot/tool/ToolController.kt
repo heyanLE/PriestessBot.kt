@@ -3,11 +3,7 @@ package com.heyanle.priestess.bot.tool
 import com.heyanle.priestess.bot.core.controller.BaseController
 
 /**
- * Owns registered function tools and the aggregate ToolSet view.
- *
- * Built-in and dynamically added tools are kept in sync with [ToolSet], which is
- * consumed by agent runners and executors. The controller clears registered tools
- * during shutdown; use ToolCase or ToolExecutor for cross-module operations.
+ * 工具控制器，负责维护已注册工具和聚合 ToolSet 视图并承接工具模块生命周期。
  */
 class ToolController : BaseController("ToolController") {
 

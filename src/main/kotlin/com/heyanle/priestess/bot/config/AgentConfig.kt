@@ -2,6 +2,9 @@ package com.heyanle.priestess.bot.config
 
 import kotlinx.serialization.Serializable
 
+/**
+ * 主 Agent 运行配置，描述默认身份、模型参数、上下文压缩和工具访问策略。
+ */
 @Serializable
 data class AgentConfig(
     val name: String = "assistant",

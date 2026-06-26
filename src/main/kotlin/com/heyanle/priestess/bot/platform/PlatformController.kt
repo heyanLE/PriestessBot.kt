@@ -8,11 +8,7 @@ import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.collectLatest
 
 /**
- * Owns configured platform adapter instances and their running jobs.
- *
- * This is the only controller eagerly resolved at application startup. It listens
- * to platform config flow updates, starts or stops adapters, and routes incoming
- * platform messages to PlatformCase without using a global event bus.
+ * 平台控制器，负责维护平台适配器实例、监听平台配置变化并承接平台模块生命周期。
  */
 class PlatformController(
     private val configCase: ConfigCase,

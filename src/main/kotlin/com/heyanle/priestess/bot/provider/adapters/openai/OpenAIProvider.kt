@@ -13,6 +13,9 @@ import io.ktor.serialization.kotlinx.json.*
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.serialization.json.*
 
+/**
+ * OpenAI 兼容模型提供者，负责调用 chat completions 和 models 接口。
+ */
 class OpenAIProvider(
     override val config: ProviderConfig,
     override val metadata: ProviderMetadata = ProviderMetadata(

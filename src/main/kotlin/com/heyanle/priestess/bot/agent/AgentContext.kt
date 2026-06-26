@@ -6,6 +6,9 @@ import com.heyanle.priestess.bot.provider.model.ConversationMessage
 import com.heyanle.priestess.bot.skill.PipelineSkillState
 import com.heyanle.priestess.bot.tool.FunctionTool
 
+/**
+ * Agent 执行上下文，承载当前会话消息、平台会话和工作区限定工具。
+ */
 data class AgentContext(
     val agent: Agent,
     val conversationId: String,

@@ -1,6 +1,7 @@
 package com.heyanle.priestess.bot.persona
 
-import com.heyanle.priestess.bot.core.db.DatabaseController
+import com.heyanle.priestess.bot.core.controller.BaseController
+import com.heyanle.priestess.bot.core.db.DatabaseCase
 import com.heyanle.priestess.bot.core.db.PersonasTable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -12,9 +13,12 @@ import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.update
 import java.util.UUID
 
+/**
+ * 人设控制器，负责人设档案的持久化、软删除和按智能体解析。
+ */
 class PersonaController(
-    private val db: DatabaseController,
-) {
+    private val db: DatabaseCase,
+) : BaseController("PersonaController") {
     private val json = Json {
         ignoreUnknownKeys = true
         encodeDefaults = true

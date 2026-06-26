@@ -2,18 +2,21 @@ package com.heyanle.priestess.bot.plugin
 
 import com.heyanle.priestess.bot.config.ConfigCase
 import com.heyanle.priestess.bot.core.controller.BaseController
-import com.heyanle.priestess.bot.provider.ProviderController
-import com.heyanle.priestess.bot.tool.ToolController
+import com.heyanle.priestess.bot.provider.ProviderCase
+import com.heyanle.priestess.bot.tool.ToolCase
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import java.io.File
 import java.net.URL
 
+/**
+ * 插件模块控制器，负责插件发现、加载生命周期和运行时上下文管理。
+ */
 class PluginController(
     private val configCase: ConfigCase,
     private val extensionRegistry: PluginExtensionRegistry,
-    private val toolController: ToolController,
-    private val providerController: ProviderController,
+    private val toolCase: ToolCase,
+    private val providerCase: ProviderCase,
 ) : BaseController("PluginController") {
 
     private val json = Json {
@@ -73,8 +76,8 @@ class PluginController(
                 manifest = manifest,
                 pluginPath = descriptor.path,
                 extensionRegistry = extensionRegistry,
-                toolController = toolController,
-                providerController = providerController,
+                toolCase = toolCase,
+                providerCase = providerCase,
             )
             val instance = instantiatePlugin(classLoader, manifest.entrypoint)
             val runtime = PluginRuntime(descriptor, classLoader, instance, context)

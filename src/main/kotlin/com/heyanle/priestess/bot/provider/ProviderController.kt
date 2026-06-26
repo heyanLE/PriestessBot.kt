@@ -6,11 +6,7 @@ import com.heyanle.priestess.bot.core.controller.BaseController
 import kotlinx.coroutines.flow.collectLatest
 
 /**
- * Owns runtime LLM provider instances created from provider configuration.
- *
- * Built-in provider factories are registered when this controller is lazily
- * constructed, and enabled providers are materialized from the current config.
- * ProviderCase exposes lookup and health-check operations to other modules.
+ * 模型提供者控制器，负责根据配置维护可用的运行时模型提供者。
  */
 class ProviderController(
     configCase: ConfigCase,

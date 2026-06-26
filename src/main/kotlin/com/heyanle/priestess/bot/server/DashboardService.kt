@@ -4,12 +4,10 @@ import com.heyanle.priestess.bot.agent.AgentCase
 import com.heyanle.priestess.bot.agent.AgentContext
 import com.heyanle.priestess.bot.agent.AgentHooks
 import com.heyanle.priestess.bot.agent.AgentResponse
-import com.heyanle.priestess.bot.agent.context.ContextManager
 import com.heyanle.priestess.bot.agent.orchestration.SubAgentOrchestrator
-import com.heyanle.priestess.bot.agent.runner.ReActRunner
+import com.heyanle.priestess.bot.agent.orchestration.SubAgentRunEvent
 import com.heyanle.priestess.bot.config.ConfigCase
 import com.heyanle.priestess.bot.config.ConfigBackup
-import com.heyanle.priestess.bot.config.ConfigController
 import com.heyanle.priestess.bot.config.PriestessConfig
 import com.heyanle.priestess.bot.conversation.ConversationCase
 import com.heyanle.priestess.bot.knowledge.KnowledgeCase
@@ -17,61 +15,60 @@ import com.heyanle.priestess.bot.memory.MemoryCase
 import com.heyanle.priestess.bot.memory.MemoryFilter
 import com.heyanle.priestess.bot.memory.MemoryScopeContext
 import com.heyanle.priestess.bot.memory.MemorySearchQuery
-import com.heyanle.priestess.bot.observability.MetricsRegistry
+import com.heyanle.priestess.bot.observability.ObservabilityCase
 import com.heyanle.priestess.bot.persona.PersonaCase
 import com.heyanle.priestess.bot.persona.PersonaMemoryInjection
 import com.heyanle.priestess.bot.persona.PersonaMemoryInjectionContext
 import com.heyanle.priestess.bot.persona.PersonaMemoryInjector
 import com.heyanle.priestess.bot.persona.PersonaUpsertRequest
 import com.heyanle.priestess.bot.plugin.PluginCase
-import com.heyanle.priestess.bot.platform.PlatformController
+import com.heyanle.priestess.bot.platform.PlatformCase
 import com.heyanle.priestess.bot.provider.model.ConversationMessage
 import com.heyanle.priestess.bot.provider.ProviderCase
-import com.heyanle.priestess.bot.tool.ToolController
-import com.heyanle.priestess.bot.tool.ToolExecutor
-import com.heyanle.priestess.bot.tool.ToolListing
-import com.heyanle.priestess.bot.workspace.WorkspaceController
+import com.heyanle.priestess.bot.tool.ToolCase
+import com.heyanle.priestess.bot.tool.ToolListingFilters
+import com.heyanle.priestess.bot.workspace.WorkspaceCase
 import com.heyanle.priestess.bot.workspace.WorkspaceMemoryPolicyConfig
 import com.heyanle.priestess.bot.workspace.WorkspaceSnapshot
 import com.heyanle.priestess.bot.workspace.WorkspaceStatus
 import java.util.UUID
 
+/**
+ * 仪表盘应用服务，负责把 HTTP 路由请求转换为各业务模块的门面调用。
+ */
 class DashboardService(
-    private val configController: ConfigController,
     private val configCase: ConfigCase,
-    private val platformController: PlatformController,
+    private val platformCase: PlatformCase,
     private val providerCase: ProviderCase,
-    private val toolController: ToolController,
+    private val toolCase: ToolCase,
     private val conversationCase: ConversationCase,
     private val pluginCase: PluginCase,
     private val agentCase: AgentCase,
-    private val contextManager: ContextManager,
-    private val toolExecutor: ToolExecutor,
     private val knowledgeCase: KnowledgeCase,
     private val subAgentOrchestrator: SubAgentOrchestrator,
-    private val metricsRegistry: MetricsRegistry,
+    private val observabilityCase: ObservabilityCase,
     private val healthProvider: RuntimeHealthProvider,
-    private val workspaceController: WorkspaceController? = null,
+    private val workspaceCase: WorkspaceCase? = null,
     private val personaCase: PersonaCase? = null,
     private val memoryCase: MemoryCase? = null,
     private val personaMemoryInjector: PersonaMemoryInjector? = null,
 ) {
     fun health(): HealthResponse = healthProvider.snapshot()
 
-    fun metrics(): String = metricsRegistry.renderPrometheus()
+    fun metrics(): String = observabilityCase.renderPrometheus()
 
     fun config(): PriestessConfig = configCase.current()
 
-    fun replaceConfig(config: PriestessConfig): PriestessConfig = configController.replace(config)
+    fun replaceConfig(config: PriestessConfig): PriestessConfig = configCase.replace(config)
 
-    fun reloadConfig(): PriestessConfig = configController.reload()
+    fun reloadConfig(): PriestessConfig = configCase.reload()
 
-    fun configBackups(): List<ConfigBackup> = configController.listBackups()
+    fun configBackups(): List<ConfigBackup> = configCase.listBackups()
 
-    fun restoreConfigBackup(id: String): PriestessConfig = configController.restoreBackup(id)
+    fun restoreConfigBackup(id: String): PriestessConfig = configCase.restoreBackup(id)
 
     fun platforms(): List<PlatformStatusDto> {
-        val running = platformController.getRunning().map { it.metadata.name }.toSet()
+        val running = platformCase.runningPlatformNames()
         return configCase.current().platforms.map { cfg ->
             PlatformStatusDto(
                 name = cfg.name.ifBlank { cfg.type },
@@ -86,14 +83,14 @@ class DashboardService(
     }
 
     fun setPlatformEnabled(name: String, enabled: Boolean): PriestessConfig {
-        return configController.update { current ->
+        return configCase.update { current ->
             current.copy(
                 platforms = current.platforms.map { cfg ->
                     val cfgName = cfg.name.ifBlank { cfg.type }
                     if (cfgName == name || cfg.type == name) cfg.copy(enabled = enabled) else cfg
                 },
             )
-        }.also { configController.save(it) }
+        }.also { configCase.save(it) }
     }
 
     fun providers(): List<ProviderDto> {
@@ -112,16 +109,11 @@ class DashboardService(
     suspend fun testProviders(): Map<String, Boolean> = providerCase.testAll()
 
     fun tools(): List<ToolDto> {
-        val listingByName = ToolListing.list(
-            registeredTools = toolController.getRegisteredTools(),
-            filters = com.heyanle.priestess.bot.tool.ToolListingFilters(includeHighRisk = true),
-        ).associateBy { it.name }
-        return toolController.getRegisteredTools().map { registered ->
-            val tool = registered.tool
-            val listing = listingByName.getValue(tool.schema.name)
+        return toolCase.list(ToolListingFilters(includeHighRisk = true)).map { listing ->
+            val tool = toolCase.get(listing.name) ?: error("Tool '${listing.name}' missing after listing")
             ToolDto(
-                name = tool.schema.name,
-                description = tool.schema.description,
+                name = listing.name,
+                description = listing.description,
                 parameters = tool.schema.parameters,
                 source = listing.source,
                 owner = listing.owner,
@@ -136,14 +128,14 @@ class DashboardService(
     }
 
     fun workspaces(): WorkspaceListResponse {
-        val controller = requireWorkspaceController()
-        return WorkspaceListResponse(controller.list().map { it.toDto() })
+        val workspaceCase = requireWorkspaceCase()
+        return WorkspaceListResponse(workspaceCase.list().map { it.toDto() })
     }
 
     fun workspaceDetail(id: String): WorkspaceDetailDto {
-        val controller = requireWorkspaceController()
-        val snapshot = controller.get(id) ?: throw NoSuchElementException("Workspace '$id' not found")
-        val status = controller.list().firstOrNull { it.id == id }
+        val workspaceCase = requireWorkspaceCase()
+        val snapshot = workspaceCase.get(id) ?: throw NoSuchElementException("Workspace '$id' not found")
+        val status = workspaceCase.list().firstOrNull { it.id == id }
             ?: WorkspaceStatus(
                 id = snapshot.id,
                 name = snapshot.name,
@@ -156,11 +148,11 @@ class DashboardService(
     }
 
     fun reloadWorkspace(id: String): com.heyanle.priestess.bot.workspace.WorkspaceReloadResult {
-        return requireWorkspaceController().reload(id)
+        return requireWorkspaceCase().reload(id)
     }
 
     fun reloadWorkspaces(): List<com.heyanle.priestess.bot.workspace.WorkspaceReloadResult> {
-        return requireWorkspaceController().reloadAll()
+        return requireWorkspaceCase().reloadAll()
     }
 
     fun workspaceTools(id: String): WorkspaceResourceListResponse {
@@ -439,16 +431,12 @@ class DashboardService(
             }
         }
 
-        val runner = ReActRunner(
+        return when (val response = agentCase.runWithProvider(
             context = context,
             provider = provider,
-            toolExecutor = toolExecutor,
-            toolRegistry = toolController,
-            contextManager = contextManager,
+            toolCase = toolCase,
             hooks = hooks,
-        )
-
-        return when (val response = runner.stepUntilDone()) {
+        )) {
             is AgentResponse.Final -> AgentChatResponse(
                 status = "FINAL",
                 content = response.content,
@@ -502,9 +490,9 @@ class DashboardService(
     }
 
     fun replaceSubAgentConfig(config: com.heyanle.priestess.bot.config.SubAgentOrchestrationConfig): com.heyanle.priestess.bot.config.SubAgentOrchestrationConfig {
-        return configController.update { current ->
+        return configCase.update { current ->
             current.copy(subAgents = config)
-        }.also { configController.save(it) }.subAgents
+        }.also { configCase.save(it) }.subAgents
     }
 
     suspend fun testSubAgent(request: SubAgentTestRequest): SubAgentTestResponse {
@@ -521,17 +509,29 @@ class DashboardService(
             selectedAgentName = result.selection.agentName,
             selectedRouteName = result.selection.routeName,
             selectionReason = result.selection.reason,
-            events = result.events,
+            events = result.events.map { it.toAgentChatEventDto() },
             conversationId = result.conversationId,
         )
     }
 
-    private fun requireWorkspaceController(): WorkspaceController {
-        return workspaceController ?: throw IllegalStateException("Workspace runtime is not available")
+    private fun SubAgentRunEvent.toAgentChatEventDto(): AgentChatEventDto {
+        return AgentChatEventDto(
+            type = type,
+            message = message,
+            toolName = toolName,
+            success = success,
+            errorCode = errorCode,
+            policyDenialCode = policyDenialCode,
+            timestamp = timestamp,
+        )
+    }
+
+    private fun requireWorkspaceCase(): WorkspaceCase {
+        return workspaceCase ?: throw IllegalStateException("Workspace runtime is not available")
     }
 
     private fun requireWorkspaceSnapshot(id: String): WorkspaceSnapshot {
-        return requireWorkspaceController().get(id)
+        return requireWorkspaceCase().get(id)
             ?: throw NoSuchElementException("Workspace '$id' not found")
     }
 
@@ -549,7 +549,7 @@ class DashboardService(
         workspaceId: String,
     ): PersonaMemoryInjection? {
         val injector = personaMemoryInjector ?: return null
-        val maxMemories = workspaceController
+        val maxMemories = workspaceCase
             ?.get(workspaceId)
             ?.memoryPolicy
             ?.maxInjectedMemories

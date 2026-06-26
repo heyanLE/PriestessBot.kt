@@ -2,6 +2,9 @@ package com.heyanle.priestess.bot.agent.context
 
 import com.heyanle.priestess.bot.provider.model.ConversationMessage
 
+/**
+ * Token 窗口压缩策略，在预算内尽量保留最新且完整的消息片段。
+ */
 class TokenWindowStrategy(
     private val tokenCounter: TokenCounter,
 ) : ContextCompressStrategy {

@@ -32,6 +32,9 @@ import kotlinx.serialization.json.put
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 
+/**
+ * Gemini 模型提供者，负责调用 Google generateContent 和模型列表接口。
+ */
 class GeminiProvider(
     override val config: ProviderConfig,
     override val metadata: ProviderMetadata = ProviderMetadata(

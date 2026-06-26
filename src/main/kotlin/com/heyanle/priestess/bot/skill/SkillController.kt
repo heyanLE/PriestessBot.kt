@@ -3,11 +3,7 @@ package com.heyanle.priestess.bot.skill
 import com.heyanle.priestess.bot.core.controller.BaseController
 
 /**
- * Owns registered skill handlers and dispatch order.
- *
- * Skills are stored in priority order so dispatch can return the first handler
- * that accepts a message. Cross-module callers should use SkillCase instead of
- * manipulating the controller directly.
+ * 技能控制器，负责维护已注册技能、按优先级分发消息并承接技能模块生命周期。
  */
 class SkillController : BaseController("SkillController") {
 

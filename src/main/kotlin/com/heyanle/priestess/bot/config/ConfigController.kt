@@ -17,12 +17,11 @@ import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 
 /**
- * Owns application configuration loaded from disk and publishes typed config slices.
+ * 配置模块控制器，负责加载磁盘配置、维护内存状态并发布按领域拆分的配置流。
  *
- * The external config file remains a single [PriestessConfig], while module code
- * observes focused [StateFlow] values such as platform, provider, database, agent,
- * and pipeline config. Runtime changes are pushed explicitly through [update] and
- * persisted through [save]; this controller does not watch the file system.
+ * 外部配置文件保持为单一的 [PriestessConfig]，模块内部通过聚焦的 [StateFlow]
+ * 观察平台、提供商、数据库、Agent、流水线等配置片段。运行时变更通过 [update]
+ * 显式发布，并通过 [save] 持久化；文件监听仅在配置启用时启动。
  */
 class ConfigController(
     private val path: String = resolveDefaultPath(),
@@ -283,6 +282,9 @@ class ConfigController(
     }
 }
 
+/**
+ * 配置备份文件信息，用于展示和恢复历史配置。
+ */
 @Serializable
 data class ConfigBackup(
     val id: String,

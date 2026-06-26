@@ -1,5 +1,8 @@
 package com.heyanle.priestess.bot.persona
 
+/**
+ * 人设模块门面，向外提供人设查询、保存、删除和解析能力。
+ */
 class PersonaCase(
     private val controller: PersonaController,
 ) {

@@ -10,6 +10,7 @@ import com.heyanle.priestess.bot.provider.model.LLMRequest
 import com.heyanle.priestess.bot.config.PlatformConfig
 import com.heyanle.priestess.bot.platform.PlatformRegistry
 import com.heyanle.priestess.bot.tool.AgentToolContext
+import com.heyanle.priestess.bot.tool.ToolCase
 import com.heyanle.priestess.bot.tool.ToolController
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -48,8 +49,8 @@ class PluginControllerTest {
         val manager = PluginController(
             configCase = configCase,
             extensionRegistry = PluginExtensionRegistry(),
-            toolController = ToolController(),
-            providerController = ProviderController(configCase),
+            toolCase = ToolCase(ToolController()),
+            providerCase = ProviderCase(ProviderController(configCase)),
         )
 
         val discovered = manager.discover().single()
@@ -167,8 +168,8 @@ class PluginControllerTest {
         return PluginController(
             configCase = configCase,
             extensionRegistry = registry,
-            toolController = toolController,
-            providerController = providerController,
+            toolCase = ToolCase(toolController),
+            providerCase = ProviderCase(providerController),
         ) to providerController
     }
 

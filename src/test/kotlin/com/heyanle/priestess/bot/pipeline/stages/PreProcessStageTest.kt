@@ -2,8 +2,6 @@ package com.heyanle.priestess.bot.pipeline.stages
 
 import com.heyanle.priestess.bot.agent.AgentCase
 import com.heyanle.priestess.bot.agent.AgentResponse
-import com.heyanle.priestess.bot.agent.context.ContextManager
-import com.heyanle.priestess.bot.agent.context.TokenCounter
 import com.heyanle.priestess.bot.config.AgentConfig
 import com.heyanle.priestess.bot.config.PipelineConfig
 import com.heyanle.priestess.bot.conversation.MessageRole
@@ -20,11 +18,13 @@ import com.heyanle.priestess.bot.skill.SkillController
 import com.heyanle.priestess.bot.testkit.testConversationCase
 import com.heyanle.priestess.bot.testkit.testPersonaMemoryControllers
 import com.heyanle.priestess.bot.testkit.testPipelineContext
+import com.heyanle.priestess.bot.tool.ToolCase
 import com.heyanle.priestess.bot.tool.ToolController
 import com.heyanle.priestess.bot.tool.builtin.SystemInfoTool
 import com.heyanle.priestess.bot.workspace.WorkspaceConfig
 import com.heyanle.priestess.bot.workspace.WorkspaceConfigSet
 import com.heyanle.priestess.bot.workspace.WorkspaceConfigSource
+import com.heyanle.priestess.bot.workspace.WorkspaceCase
 import com.heyanle.priestess.bot.workspace.WorkspaceController
 import com.heyanle.priestess.bot.workspace.WorkspaceMcpServerConfig
 import com.heyanle.priestess.bot.workspace.WorkspaceMemoryPolicyConfig
@@ -442,8 +442,7 @@ class PreProcessStageTest {
             pipelineConfig = PipelineConfig(maxHistoryMessages = 5),
             conversationCase = conversationCase,
             agentCase = AgentCase(),
-            contextManager = ContextManager(TokenCounter()),
-            workspaceController = workspaceController,
+            workspaceCase = workspaceController?.let { WorkspaceCase(it) },
             personaMemoryInjector = personaMemoryInjector,
         )
     }
@@ -461,7 +460,7 @@ class PreProcessStageTest {
         }
         return WorkspaceController(
             source = source,
-            toolController = tools,
+            toolCase = ToolCase(tools),
             skillCase = SkillCase(skills),
             nowProvider = { 1_000L },
         )

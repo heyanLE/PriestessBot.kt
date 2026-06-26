@@ -1,8 +1,6 @@
 package com.heyanle.priestess.bot.integration
 
 import com.heyanle.priestess.bot.agent.AgentCase
-import com.heyanle.priestess.bot.agent.context.ContextManager
-import com.heyanle.priestess.bot.agent.context.TokenCounter
 import com.heyanle.priestess.bot.config.AgentConfig
 import com.heyanle.priestess.bot.config.PipelineConfig
 import com.heyanle.priestess.bot.config.PlatformConfig
@@ -10,6 +8,7 @@ import com.heyanle.priestess.bot.config.PriestessConfig
 import com.heyanle.priestess.bot.config.ProviderConfig
 import com.heyanle.priestess.bot.conversation.MessageRole
 import com.heyanle.priestess.bot.observability.MetricsRegistry
+import com.heyanle.priestess.bot.observability.ObservabilityCase
 import com.heyanle.priestess.bot.pipeline.PipelineCase
 import com.heyanle.priestess.bot.pipeline.PipelineController
 import com.heyanle.priestess.bot.platform.MessageChain
@@ -25,6 +24,7 @@ import com.heyanle.priestess.bot.testkit.FakePlatform
 import com.heyanle.priestess.bot.testkit.FakeProvider
 import com.heyanle.priestess.bot.testkit.testConfigController
 import com.heyanle.priestess.bot.testkit.testConversationCase
+import com.heyanle.priestess.bot.tool.ToolCase
 import com.heyanle.priestess.bot.tool.ToolController
 import com.heyanle.priestess.bot.tool.ToolExecutor
 import kotlinx.coroutines.delay
@@ -56,15 +56,14 @@ class ConfigReloadIntegrationTest {
         val conversationCase = testConversationCase("config-reload-integration")
         val toolController = ToolController()
         val metrics = MetricsRegistry()
+        val observabilityCase = ObservabilityCase.standalone(metrics)
         val pipelineController = PipelineController(
             configCase = configCase,
             conversationCase = conversationCase,
             agentCase = AgentCase(),
-            contextManager = ContextManager(TokenCounter()),
             providerCase = ProviderCase(providerController),
-            toolExecutor = ToolExecutor(toolController, metrics),
-            toolController = toolController,
-            metricsRegistry = metrics,
+            toolCase = ToolCase(toolController),
+            observabilityCase = observabilityCase,
         )
         val pipelineCase = PipelineCase(pipelineController)
         val platformController = PlatformController(

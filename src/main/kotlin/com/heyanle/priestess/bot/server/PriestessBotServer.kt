@@ -19,6 +19,9 @@ import io.ktor.server.response.respond
 import io.ktor.server.websocket.WebSockets
 import kotlinx.serialization.json.Json
 
+/**
+ * Ktor 服务包装器，负责按服务端配置创建和关闭 Netty 引擎。
+ */
 class PriestessBotServer(
     private val config: ServerConfig,
     private val service: DashboardService,

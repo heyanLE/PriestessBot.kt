@@ -4,6 +4,7 @@ import com.heyanle.priestess.bot.testkit.testConversationCase
 import com.heyanle.priestess.bot.testkit.testKnowledgeCase
 import com.heyanle.priestess.bot.testkit.testMemoryCase
 import com.heyanle.priestess.bot.testkit.testReminderCase
+import com.heyanle.priestess.bot.tool.ToolCase
 import com.heyanle.priestess.bot.tool.ToolController
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -13,17 +14,18 @@ import kotlin.test.assertTrue
 class BuiltinToolsRegistrationTest {
     @Test
     fun `registers all v3 core tools when dependencies are available`() {
-        val registry = ToolController()
+        val controller = ToolController()
+        val registry = ToolCase(controller)
         registerBuiltinTools(
             registry = registry,
             knowledgeCaseProvider = { testKnowledgeCase("builtin-registration-knowledge") },
-            healthProvider = { error("not used") },
+            serverCaseProvider = { error("not used") },
             conversationCaseProvider = { testConversationCase("builtin-registration-conversation") },
             memoryCaseProvider = { testMemoryCase("builtin-registration-memory") },
             reminderCaseProvider = { testReminderCase("builtin-registration-reminder") },
         )
 
-        val tools = registry.getRegisteredTools().associateBy { it.schema.name }
+        val tools = controller.getRegisteredTools().associateBy { it.schema.name }
         val expected = setOf(
             "list_tools",
             "use_skill",

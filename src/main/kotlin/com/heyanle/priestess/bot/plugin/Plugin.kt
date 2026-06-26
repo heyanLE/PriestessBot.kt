@@ -1,16 +1,17 @@
 package com.heyanle.priestess.bot.plugin
 
 import com.heyanle.priestess.bot.provider.ChatProvider
-import com.heyanle.priestess.bot.provider.ProviderController
+import com.heyanle.priestess.bot.provider.ProviderCase
 import com.heyanle.priestess.bot.config.PlatformConfig
 import com.heyanle.priestess.bot.platform.Platform
 import com.heyanle.priestess.bot.platform.PlatformMetadata
 import com.heyanle.priestess.bot.platform.PlatformRegistry
 import com.heyanle.priestess.bot.tool.FunctionTool
-import com.heyanle.priestess.bot.tool.ToolController
-import com.heyanle.priestess.bot.tool.ToolMetadata
-import com.heyanle.priestess.bot.tool.ToolSource
+import com.heyanle.priestess.bot.tool.ToolCase
 
+/**
+ * 插件生命周期接口，插件实现通过这些回调接入系统运行流程。
+ */
 interface Plugin {
     fun onLoad(context: PluginContext) = Unit
     fun onEnable(context: PluginContext) = Unit
@@ -18,6 +19,9 @@ interface Plugin {
     fun onUnload(context: PluginContext) = Unit
 }
 
+/**
+ * 插件运行上下文，向插件暴露扩展、工具、提供者和平台注册能力。
+ */
 interface PluginContext {
     val manifest: PluginManifest
     val pluginPath: String
@@ -32,12 +36,15 @@ interface PluginContext {
     fun registeredPlatforms(): List<String>
 }
 
+/**
+ * 默认插件上下文，记录单个插件的运行时贡献并负责在卸载时清理。
+ */
 class DefaultPluginContext(
     override val manifest: PluginManifest,
     override val pluginPath: String,
     private val extensionRegistry: PluginExtensionRegistry,
-    private val toolController: ToolController,
-    private val providerController: ProviderController,
+    private val toolCase: ToolCase,
+    private val providerCase: ProviderCase,
 ) : PluginContext {
     private val toolNames = linkedSetOf<String>()
     private val providerNames = linkedSetOf<String>()
@@ -60,11 +67,7 @@ class DefaultPluginContext(
 
     override fun registerTool(tool: FunctionTool) {
         val name = tool.schema.name
-        toolController.unregister(name)
-        toolController.register(
-            tool = tool,
-            metadata = ToolMetadata(source = ToolSource.PLUGIN, owner = manifest.id),
-        )
+        toolCase.registerPluginTool(manifest.id, tool)
         toolNames.add(name)
         registerExtension("tool", name, tool.schema.description)
     }
@@ -73,8 +76,7 @@ class DefaultPluginContext(
 
     override fun registerProvider(provider: ChatProvider) {
         val name = provider.metadata.name
-        providerController.unregister(name)
-        providerController.register(provider)
+        providerCase.registerPluginProvider(provider)
         providerNames.add(name)
         registerExtension("provider", name, provider.metadata.displayName)
     }
@@ -91,9 +93,9 @@ class DefaultPluginContext(
     override fun registeredPlatforms(): List<String> = platformNames.toList()
 
     fun clearRuntimeContributions() {
-        toolNames.forEach { toolController.unregister(it) }
+        toolNames.forEach { toolCase.unregisterPluginTool(it) }
         toolNames.clear()
-        providerNames.forEach { providerController.unregister(it) }
+        providerNames.forEach { providerCase.unregisterPluginProvider(it) }
         providerNames.clear()
         platformNames.forEach { PlatformRegistry.unregister(it) }
         platformNames.clear()

@@ -1,8 +1,6 @@
 package com.heyanle.priestess.bot.pipeline
 
 import com.heyanle.priestess.bot.agent.AgentCase
-import com.heyanle.priestess.bot.agent.context.ContextManager
-import com.heyanle.priestess.bot.agent.context.TokenCounter
 import com.heyanle.priestess.bot.agent.orchestration.SubAgentOrchestrator
 import com.heyanle.priestess.bot.config.AgentConfig
 import com.heyanle.priestess.bot.config.ConfigCase
@@ -11,7 +9,6 @@ import com.heyanle.priestess.bot.config.PipelineConfig
 import com.heyanle.priestess.bot.config.SubAgentConfig
 import com.heyanle.priestess.bot.config.SubAgentOrchestrationConfig
 import com.heyanle.priestess.bot.config.SubAgentRouteConfig
-import com.heyanle.priestess.bot.observability.MetricsRegistry
 import com.heyanle.priestess.bot.pipeline.stages.PreProcessStage
 import com.heyanle.priestess.bot.pipeline.stages.ProcessStage
 import com.heyanle.priestess.bot.pipeline.stages.RespondStage
@@ -30,6 +27,7 @@ import com.heyanle.priestess.bot.testkit.FakePlatform
 import com.heyanle.priestess.bot.testkit.FakeProvider
 import com.heyanle.priestess.bot.testkit.FakeTool
 import com.heyanle.priestess.bot.testkit.testInMemoryConversationCase
+import com.heyanle.priestess.bot.tool.ToolCase
 import com.heyanle.priestess.bot.tool.ToolController
 import com.heyanle.priestess.bot.tool.ToolExecutor
 import com.heyanle.priestess.bot.tool.ToolResult
@@ -37,6 +35,7 @@ import com.heyanle.priestess.bot.tool.builtin.UseSkillTool
 import com.heyanle.priestess.bot.workspace.WorkspaceConfig
 import com.heyanle.priestess.bot.workspace.WorkspaceConfigSet
 import com.heyanle.priestess.bot.workspace.WorkspaceConfigSource
+import com.heyanle.priestess.bot.workspace.WorkspaceCase
 import com.heyanle.priestess.bot.workspace.WorkspaceController
 import com.heyanle.priestess.bot.workspace.WorkspaceMcpClientHandle
 import com.heyanle.priestess.bot.workspace.WorkspaceMcpResource
@@ -74,7 +73,7 @@ class WorkspacePipelineReloadTest {
         }
         val workspaceController = WorkspaceController(
             source = source,
-            toolController = toolController,
+            toolCase = ToolCase(toolController),
             skillCase = com.heyanle.priestess.bot.skill.SkillCase(
                 com.heyanle.priestess.bot.skill.SkillController(),
             ),
@@ -163,7 +162,7 @@ class WorkspacePipelineReloadTest {
         }
         val workspaceController = WorkspaceController(
             source = source,
-            toolController = toolController,
+            toolCase = ToolCase(toolController),
             skillCase = com.heyanle.priestess.bot.skill.SkillCase(
                 com.heyanle.priestess.bot.skill.SkillController(),
             ),
@@ -230,7 +229,7 @@ class WorkspacePipelineReloadTest {
         val toolController = ToolController()
         val workspaceController = WorkspaceController(
             source = source,
-            toolController = toolController,
+            toolCase = ToolCase(toolController),
             skillCase = SkillCase(SkillController()),
             mcpToolResolver = resolver,
             nowProvider = { 1_000L },
@@ -340,7 +339,7 @@ class WorkspacePipelineReloadTest {
         val toolController = ToolController()
         val workspaceController = WorkspaceController(
             source = source,
-            toolController = toolController,
+            toolCase = ToolCase(toolController),
             skillCase = skillCase,
             nowProvider = { 1_000L },
         )
@@ -425,7 +424,7 @@ class WorkspacePipelineReloadTest {
         }
         val workspaceController = WorkspaceController(
             source = source,
-            toolController = toolController,
+            toolCase = ToolCase(toolController),
             skillCase = skillCase,
             nowProvider = { 1_000L },
         )
@@ -486,7 +485,7 @@ class WorkspacePipelineReloadTest {
         val toolController = ToolController()
         val workspaceController = WorkspaceController(
             source = source,
-            toolController = toolController,
+            toolCase = ToolCase(toolController),
             skillCase = SkillCase(SkillController()),
             nowProvider = { 1_000L },
         )
@@ -578,7 +577,7 @@ class WorkspacePipelineReloadTest {
         val skillCase = SkillCase(SkillController())
         val workspaceController = WorkspaceController(
             source = source,
-            toolController = toolController,
+            toolCase = ToolCase(toolController),
             skillCase = skillCase,
             nowProvider = { 1_000L },
         )
@@ -713,7 +712,6 @@ class WorkspacePipelineReloadTest {
             ),
         )
         providers.forEach { providerController.register(it) }
-        val contextManager = ContextManager(TokenCounter())
         val stages = buildList {
             add(
                 PreProcessStage(
@@ -721,8 +719,7 @@ class WorkspacePipelineReloadTest {
                     pipelineConfig = PipelineConfig(maxHistoryMessages = 0),
                     conversationCase = testInMemoryConversationCase(),
                     agentCase = AgentCase(),
-                    contextManager = contextManager,
-                    workspaceController = workspaceController,
+                    workspaceCase = WorkspaceCase(workspaceController),
                     subAgentOrchestrator = subAgentOrchestrator,
                     skillCase = skillCase,
                 ),
@@ -730,11 +727,9 @@ class WorkspacePipelineReloadTest {
             if (gateStage != null) add(gateStage)
             add(
                 ProcessStage(
+                    agentCase = AgentCase(),
                     providerCase = ProviderCase(providerController),
-                    toolExecutor = ToolExecutor(toolController),
-                    toolController = toolController,
-                    contextManager = contextManager,
-                    metricsRegistry = MetricsRegistry(),
+                    toolCase = ToolCase(toolController),
                 ),
             )
             add(ResultDecorateStage())
@@ -753,13 +748,10 @@ class WorkspacePipelineReloadTest {
             ),
         )
         providers.forEach { providerController.register(it) }
-        val contextManager = ContextManager(TokenCounter())
         return SubAgentOrchestrator(
             agentCase = AgentCase(),
-            contextManager = contextManager,
             providerCase = ProviderCase(providerController),
-            toolExecutor = ToolExecutor(toolController),
-            toolController = toolController,
+            toolCase = ToolCase(toolController),
         )
     }
 

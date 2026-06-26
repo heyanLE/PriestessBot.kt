@@ -5,6 +5,9 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
+/**
+ * 仪表盘日志中心，维护最近日志缓冲区并向 WebSocket 订阅者广播日志事件。
+ */
 object DashboardLogHub {
     private const val DEFAULT_CAPACITY = 200
     private val lock = Mutex()

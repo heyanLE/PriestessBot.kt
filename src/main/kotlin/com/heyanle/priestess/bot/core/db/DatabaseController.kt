@@ -11,6 +11,9 @@ import java.sql.DriverManager
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
+/**
+ * 会话表，保存平台会话维度的对话索引。
+ */
 object ConversationsTable : Table("conversations") {
     val id = varchar("id", 64)
     val platform = varchar("platform", 32)
@@ -21,6 +24,9 @@ object ConversationsTable : Table("conversations") {
     override val primaryKey = PrimaryKey(id)
 }
 
+/**
+ * 消息表，保存对话中的用户、助手和工具消息。
+ */
 object MessagesTable : Table("messages") {
     val id = varchar("id", 64)
     val conversationId = varchar("conversation_id", 64) references ConversationsTable.id
@@ -33,6 +39,9 @@ object MessagesTable : Table("messages") {
     override val primaryKey = PrimaryKey(id)
 }
 
+/**
+ * 知识库表，保存知识库元信息。
+ */
 object KnowledgeBasesTable : Table("knowledge_bases") {
     val id = varchar("id", 64)
     val name = varchar("name", 128)
@@ -43,6 +52,9 @@ object KnowledgeBasesTable : Table("knowledge_bases") {
     override val primaryKey = PrimaryKey(id)
 }
 
+/**
+ * 知识片段表，保存知识库拆分后的文本内容。
+ */
 object KnowledgeChunksTable : Table("knowledge_chunks") {
     val id = varchar("id", 64)
     val knowledgeBaseId = varchar("knowledge_base_id", 64) references KnowledgeBasesTable.id
@@ -53,6 +65,9 @@ object KnowledgeChunksTable : Table("knowledge_chunks") {
     override val primaryKey = PrimaryKey(id)
 }
 
+/**
+ * 记忆记录表，保存不同作用域下的长期记忆。
+ */
 object MemoryRecordsTable : Table("memory_records") {
     val id = varchar("id", 64)
     val workspaceId = varchar("workspace_id", 128)
@@ -73,6 +88,9 @@ object MemoryRecordsTable : Table("memory_records") {
     override val primaryKey = PrimaryKey(id)
 }
 
+/**
+ * 人设表，保存工作区内可启用的人设配置。
+ */
 object PersonasTable : Table("personas") {
     val id = varchar("id", 64)
     val workspaceId = varchar("workspace_id", 128)
@@ -90,6 +108,9 @@ object PersonasTable : Table("personas") {
     override val primaryKey = PrimaryKey(id)
 }
 
+/**
+ * 提醒记录表，保存待投递和已投递的提醒任务。
+ */
 object ReminderRecordsTable : Table("reminder_records") {
     val id = varchar("id", 64)
     val workspaceId = varchar("workspace_id", 128)
@@ -111,11 +132,7 @@ object ReminderRecordsTable : Table("reminder_records") {
 }
 
 /**
- * Owns the Exposed database connection and schema initialization.
- *
- * The connection is opened during construction so downstream controllers can use
- * transactions immediately when they are lazily resolved. [stop] closes and
- * unregisters the database connection before cancelling controller tasks.
+ * 数据库控制器，负责持有 Exposed 数据库连接、初始化表结构并承接数据库模块生命周期。
  */
 class DatabaseController(private val dbPath: String) : BaseController("DatabaseController"), AppDatabase {
 

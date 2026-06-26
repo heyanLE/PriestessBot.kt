@@ -7,6 +7,7 @@ import com.heyanle.priestess.bot.skill.Skill
 import com.heyanle.priestess.bot.skill.SkillCase
 import com.heyanle.priestess.bot.skill.SkillController
 import com.heyanle.priestess.bot.testkit.FakeTool
+import com.heyanle.priestess.bot.tool.ToolCase
 import com.heyanle.priestess.bot.tool.ToolController
 import com.heyanle.priestess.bot.tool.ToolSchema
 import com.heyanle.priestess.bot.tool.builtin.ListToolsTool
@@ -14,6 +15,7 @@ import com.heyanle.priestess.bot.tool.builtin.SystemInfoTool
 import com.heyanle.priestess.bot.tool.builtin.UnloadSkillTool
 import com.heyanle.priestess.bot.tool.builtin.UseSkillTool
 import com.heyanle.priestess.bot.tool.builtin.WebSearchTool
+import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -151,7 +153,7 @@ class WorkspaceControllerTest {
 
         val controller = WorkspaceController(
             source = source,
-            toolController = tools,
+            toolCase = ToolCase(tools),
             skillCase = skills,
             nowProvider = { 1_000L },
         )
@@ -314,6 +316,50 @@ class WorkspaceControllerTest {
     }
 
     @Test
+    fun `close is idempotent for active mcp handles`() {
+        val handle = FakeMcpHandle()
+        val controller = workspaceController(
+            source = MutableWorkspaceSource(
+                listOf(
+                    WorkspaceConfig(
+                        id = "default",
+                        name = "Default",
+                        mcpServers = listOf(WorkspaceMcpServerConfig(id = "local-mcp", command = "mcp-server")),
+                    ),
+                ),
+            ),
+            mcpToolResolver = FakeMcpToolResolver(result = mcpResolution("local-mcp.search", handle)),
+        )
+
+        controller.close()
+        controller.close()
+
+        assertEquals(1, handle.closeCount)
+    }
+
+    @Test
+    fun `stop releases workspace resources through controller lifecycle`() = runBlocking {
+        val handle = FakeMcpHandle()
+        val controller = workspaceController(
+            source = MutableWorkspaceSource(
+                listOf(
+                    WorkspaceConfig(
+                        id = "default",
+                        name = "Default",
+                        mcpServers = listOf(WorkspaceMcpServerConfig(id = "local-mcp", command = "mcp-server")),
+                    ),
+                ),
+            ),
+            mcpToolResolver = FakeMcpToolResolver(result = mcpResolution("local-mcp.search", handle)),
+        )
+
+        controller.stop()
+        controller.stop()
+
+        assertEquals(1, handle.closeCount)
+    }
+
+    @Test
     fun `multiple leases keep retired mcp handles open until last lease is released`() {
         val source = MutableWorkspaceSource(
             listOf(
@@ -461,7 +507,7 @@ class WorkspaceControllerTest {
         }
         return WorkspaceController(
             source = source,
-            toolController = tools,
+            toolCase = ToolCase(tools),
             skillCase = skillCase,
             mcpToolResolver = mcpToolResolver,
             nowProvider = { 1_000L },

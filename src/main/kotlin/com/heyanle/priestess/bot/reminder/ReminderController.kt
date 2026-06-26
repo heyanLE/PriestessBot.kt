@@ -1,6 +1,7 @@
 package com.heyanle.priestess.bot.reminder
 
-import com.heyanle.priestess.bot.core.db.DatabaseController
+import com.heyanle.priestess.bot.core.controller.BaseController
+import com.heyanle.priestess.bot.core.db.DatabaseCase
 import com.heyanle.priestess.bot.core.db.ReminderRecordsTable
 import com.heyanle.priestess.bot.platform.MessageChain
 import com.heyanle.priestess.bot.platform.MessageSession
@@ -14,9 +15,12 @@ import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.update
 import java.util.UUID
 
+/**
+ * 提醒控制器，负责提醒记录的持久化、可见性过滤和到期投递。
+ */
 class ReminderController(
-    private val db: DatabaseController,
-) {
+    private val db: DatabaseCase,
+) : BaseController("ReminderController") {
     fun create(
         text: String,
         dueAt: Long,

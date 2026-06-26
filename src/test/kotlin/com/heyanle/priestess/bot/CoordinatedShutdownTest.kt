@@ -1,5 +1,6 @@
 package com.heyanle.priestess.bot
 
+import com.heyanle.priestess.bot.pipeline.PipelineCase
 import com.heyanle.priestess.bot.pipeline.PipelineContext
 import com.heyanle.priestess.bot.pipeline.PipelineController
 import com.heyanle.priestess.bot.pipeline.Stage
@@ -36,6 +37,34 @@ class CoordinatedShutdownTest {
         val job = controller.process(messageEvent("accepted"))
         withTimeout(1_000) { started.await() }
         val stopJob = launch { controller.stop() }
+
+        delay(50)
+        assertFalse(stopJob.isCompleted)
+        release.complete(Unit)
+
+        withTimeout(1_000) { completed.await() }
+        withTimeout(1_000) { stopJob.join() }
+        assertTrue(job.isCompleted)
+    }
+
+    @Test
+    fun `pipeline case drains before stopping controller`() = runBlocking {
+        val started = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        val completed = CompletableDeferred<Unit>()
+        val controller = PipelineController(
+            testStages = listOf(BlockingStage(started, release, completed)),
+            testOnly = Unit,
+            drainTimeoutMillis = 1_000,
+        )
+        val pipelineCase = PipelineCase(controller)
+
+        val job = pipelineCase.process(messageEvent("accepted"))
+        withTimeout(1_000) { started.await() }
+        val stopJob = launch {
+            pipelineCase.drain(1_000)
+            pipelineCase.stop()
+        }
 
         delay(50)
         assertFalse(stopJob.isCompleted)
@@ -97,7 +126,9 @@ class CoordinatedShutdownTest {
                 "plugins" to { order += "plugins" },
                 "providers" to { order += "providers" },
                 "tools" to { order += "tools" },
+                "skills" to { order += "skills" },
                 "workspace" to { order += "workspace" },
+                "observability" to { order += "observability" },
                 "database" to { order += "database" },
                 "config" to { order += "config" },
             ),
@@ -106,7 +137,19 @@ class CoordinatedShutdownTest {
         runtime.stop()
 
         assertEquals(
-            listOf("platforms", "pipeline", "server", "plugins", "providers", "tools", "workspace", "database", "config"),
+            listOf(
+                "platforms",
+                "pipeline",
+                "server",
+                "plugins",
+                "providers",
+                "tools",
+                "skills",
+                "workspace",
+                "observability",
+                "database",
+                "config",
+            ),
             order,
         )
     }

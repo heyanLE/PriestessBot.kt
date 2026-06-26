@@ -15,6 +15,7 @@ import com.heyanle.priestess.bot.testkit.FakeTool
 import com.heyanle.priestess.bot.testkit.testAgent
 import com.heyanle.priestess.bot.testkit.testAgentContext
 import com.heyanle.priestess.bot.tool.FunctionTool
+import com.heyanle.priestess.bot.tool.ToolCase
 import com.heyanle.priestess.bot.tool.ToolController
 import com.heyanle.priestess.bot.tool.ToolExecutor
 import com.heyanle.priestess.bot.tool.ToolPolicy
@@ -375,8 +376,10 @@ class ReActRunnerTest {
         return ReActRunner(
             context = context,
             provider = provider,
-            toolExecutor = toolExecutor ?: ToolExecutor(toolController),
-            toolRegistry = toolController,
+            toolCase = ToolCase(
+                controller = toolController,
+                executorProvider = { toolExecutor ?: ToolExecutor(toolController) },
+            ),
             contextManager = ContextManager(TokenCounter()),
             hooks = hooks,
         )

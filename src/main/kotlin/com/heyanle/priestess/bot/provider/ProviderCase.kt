@@ -1,5 +1,8 @@
 package com.heyanle.priestess.bot.provider
 
+/**
+ * 模型提供者模块门面，集中向其他模块暴露提供者查询、健康检查和插件贡献入口。
+ */
 class ProviderCase(
     private val controller: ProviderController,
 ) {
@@ -7,4 +10,18 @@ class ProviderCase(
     fun getAll(): List<ChatProvider> = controller.getAll()
     fun getMetaList(): List<ProviderMetadata> = controller.getMetaList()
     suspend fun testAll(): Map<String, Boolean> = controller.testAll()
+
+    fun registerPluginProvider(provider: ChatProvider) {
+        val name = provider.metadata.name
+        controller.unregister(name)
+        controller.register(provider)
+    }
+
+    fun unregisterPluginProvider(name: String) {
+        controller.unregister(name)
+    }
+
+    suspend fun stop() {
+        controller.stop()
+    }
 }

@@ -2,6 +2,9 @@ package com.heyanle.priestess.bot.agent.context
 
 import com.heyanle.priestess.bot.provider.model.ConversationMessage
 
+/**
+ * 轮次截断压缩策略，按最新用户轮次保留上下文。
+ */
 class RoundTruncationStrategy : ContextCompressStrategy {
     override val name: String = "round_truncation"
 
