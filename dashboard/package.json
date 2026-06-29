@@ -7,6 +7,7 @@
     "dev": "vite --host 0.0.0.0",
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview --host 0.0.0.0",
+    "test:config-runtime": "node scripts/config-workdir-runtime-smoke-test.mjs",
     "test:workspaces": "node scripts/workspace-view-smoke-test.mjs",
     "test:persona-memory": "node scripts/persona-memory-smoke-test.mjs"
   },

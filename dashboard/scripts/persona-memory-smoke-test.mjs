@@ -1,7 +1,8 @@
 import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const root = resolve(import.meta.dirname, '..');
+const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const personaMemoryView = readFileSync(resolve(root, 'src/views/PersonaMemoryView.vue'), 'utf8');
 const agentView = readFileSync(resolve(root, 'src/views/AgentView.vue'), 'utf8');
 const dashboardApi = readFileSync(resolve(root, 'src/api/dashboard.ts'), 'utf8');
@@ -15,8 +16,8 @@ const checks = [
   ['searches memory records', 'await dashboardApi.searchMemory({'],
   ['deletes selected memory', 'await dashboardApi.deleteMemory(selectedMemory.value.id'],
   ['expires memory records', 'await dashboardApi.expireMemory()'],
-  ['shows persona registry', 'Persona Registry'],
-  ['shows memory workbench', 'Memory Workbench'],
+  ['shows persona registry', 'Persona registry'],
+  ['shows memory workbench', 'Memory workbench'],
   ['shows search matches', 'Search matches'],
   ['shows injection trace', 'message.injectionTrace'],
   ['shows trace persona', 'Persona {{ message.injectionTrace.personaName ??'],

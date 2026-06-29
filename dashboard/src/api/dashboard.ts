@@ -65,6 +65,7 @@ export interface PriestessConfig {
   providers: ProviderConfig[];
   agent: AgentConfig;
   workspaces?: WorkspaceConfig[];
+  workingDirectory: { path: string };
   subAgents: SubAgentOrchestrationConfig;
   database: { path: string };
   pipeline: Record<string, unknown>;
@@ -134,6 +135,85 @@ export interface ConfigBackup {
   createdAt: string;
   sizeBytes: number;
   path: string;
+}
+
+export interface PersistedConfigRevisionDto {
+  revision: number;
+  savedAt: number;
+  source: string;
+}
+
+export interface DatabaseConfigLayerResponse {
+  config: PriestessConfig;
+  revision?: PersistedConfigRevisionDto | null;
+  diagnostics: string[];
+}
+
+export interface EnvironmentOverrideSummaryDto {
+  path: string;
+  envKey: string;
+  summary: string;
+  sensitive: boolean;
+}
+
+export interface EnvironmentOverrideSummaryResponse {
+  overrides: EnvironmentOverrideSummaryDto[];
+  diagnostics: string[];
+}
+
+export interface WorkingDirectoryAgentDto {
+  name: string;
+  filePath: string;
+}
+
+export interface WorkingDirectorySkillDto {
+  name: string;
+  directoryPath: string;
+  markdownPath: string;
+  metadataPath?: string;
+  enabled: boolean;
+  settings: Record<string, string>;
+}
+
+export interface WorkingDirectorySummaryResponse {
+  configuredPath: string;
+  effectivePath: string;
+  pathSource: string;
+  valid: boolean;
+  exists: boolean;
+  manifestPath?: string;
+  manifestFound: boolean;
+  agents: WorkingDirectoryAgentDto[];
+  skills: WorkingDirectorySkillDto[];
+  diagnostics: string[];
+  unsupportedFields: string[];
+  lastLoadedAt: number;
+}
+
+export interface WorkingDirectoryUpdateRequest {
+  path: string;
+}
+
+export interface EffectiveRuntimePreviewRequest {
+  workdirPath?: string;
+  agent?: AgentConfig;
+  providerName?: string;
+  maxInjectedMemories?: number;
+}
+
+export interface EffectiveValueTraceDto {
+  path: string;
+  summary: string;
+  source: string;
+  overriddenBy?: string;
+}
+
+export interface EffectiveRuntimePreviewResponse {
+  config: PriestessConfig;
+  workingDirectory: WorkingDirectorySummaryResponse;
+  memoryPolicy: WorkspaceMemoryPolicyConfig;
+  trace: EffectiveValueTraceDto[];
+  diagnostics: string[];
 }
 
 export interface SubAgentConfig {
@@ -562,6 +642,24 @@ export const dashboardApi = {
     request<PriestessConfig>('/api/config', {
       method: 'PUT',
       body: JSON.stringify(config),
+    }),
+  databaseConfigLayer: () => request<DatabaseConfigLayerResponse>('/api/config/layers/database'),
+  replaceDatabaseConfigLayer: (config: PriestessConfig) =>
+    request<DatabaseConfigLayerResponse>('/api/config/layers/database', {
+      method: 'PUT',
+      body: JSON.stringify(config),
+    }),
+  environmentOverrideSummary: () => request<EnvironmentOverrideSummaryResponse>('/api/config/layers/environment'),
+  workingDirectorySummary: () => request<WorkingDirectorySummaryResponse>('/api/config/workdir'),
+  updateWorkingDirectorySelection: (body: WorkingDirectoryUpdateRequest) =>
+    request<WorkingDirectorySummaryResponse>('/api/config/workdir', {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    }),
+  effectiveRuntimePreview: (body: EffectiveRuntimePreviewRequest = {}) =>
+    request<EffectiveRuntimePreviewResponse>('/api/config/preview', {
+      method: 'POST',
+      body: JSON.stringify(body),
     }),
   reloadConfig: () => request<PriestessConfig>('/api/config/reload', { method: 'POST' }),
   restoreConfigBackup: (id: string) =>

@@ -1,11 +1,32 @@
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
-import { dashboardApi, type ConfigBackup, type ConversationDto, type HealthResponse, type PlatformStatusDto, type PluginListResponse, type PriestessConfig, type ProviderDto, type ToolDto, type WorkspaceListResponse, type WorkspaceReloadResult } from '../api/dashboard';
+import {
+  dashboardApi,
+  type ConfigBackup,
+  type ConversationDto,
+  type DatabaseConfigLayerResponse,
+  type EffectiveRuntimePreviewRequest,
+  type EffectiveRuntimePreviewResponse,
+  type EnvironmentOverrideSummaryResponse,
+  type HealthResponse,
+  type PlatformStatusDto,
+  type PluginListResponse,
+  type PriestessConfig,
+  type ProviderDto,
+  type ToolDto,
+  type WorkingDirectorySummaryResponse,
+  type WorkspaceListResponse,
+  type WorkspaceReloadResult,
+} from '../api/dashboard';
 
 export const useDashboardStore = defineStore('dashboard', () => {
   const health = ref<HealthResponse | null>(null);
   const config = ref<PriestessConfig | null>(null);
+  const databaseConfigLayer = ref<DatabaseConfigLayerResponse | null>(null);
   const configBackups = ref<ConfigBackup[]>([]);
+  const environmentOverrides = ref<EnvironmentOverrideSummaryResponse>({ overrides: [], diagnostics: [] });
+  const workingDirectory = ref<WorkingDirectorySummaryResponse | null>(null);
+  const effectiveRuntimePreview = ref<EffectiveRuntimePreviewResponse | null>(null);
   const platforms = ref<PlatformStatusDto[]>([]);
   const providers = ref<ProviderDto[]>([]);
   const providerTests = ref<Record<string, boolean>>({});
@@ -25,9 +46,27 @@ export const useDashboardStore = defineStore('dashboard', () => {
     loading.value = true;
     error.value = null;
     try {
-      const [nextHealth, nextConfig, nextBackups, nextPlatforms, nextProviders, nextTools, nextWorkspaces, nextConversations, nextPlugins] = await Promise.all([
+      const [
+        nextHealth,
+        nextConfig,
+        nextDatabaseConfigLayer,
+        nextEnvironmentOverrides,
+        nextWorkingDirectory,
+        nextEffectiveRuntimePreview,
+        nextBackups,
+        nextPlatforms,
+        nextProviders,
+        nextTools,
+        nextWorkspaces,
+        nextConversations,
+        nextPlugins,
+      ] = await Promise.all([
         dashboardApi.health(),
         dashboardApi.config(),
+        dashboardApi.databaseConfigLayer(),
+        dashboardApi.environmentOverrideSummary(),
+        dashboardApi.workingDirectorySummary(),
+        dashboardApi.effectiveRuntimePreview(),
         dashboardApi.configBackups(),
         dashboardApi.platforms(),
         dashboardApi.providers(),
@@ -38,6 +77,10 @@ export const useDashboardStore = defineStore('dashboard', () => {
       ]);
       health.value = nextHealth;
       config.value = nextConfig;
+      databaseConfigLayer.value = nextDatabaseConfigLayer;
+      environmentOverrides.value = nextEnvironmentOverrides;
+      workingDirectory.value = nextWorkingDirectory;
+      effectiveRuntimePreview.value = nextEffectiveRuntimePreview;
       configBackups.value = nextBackups;
       platforms.value = nextPlatforms;
       providers.value = nextProviders;
@@ -97,6 +140,41 @@ export const useDashboardStore = defineStore('dashboard', () => {
     await refreshAll();
   }
 
+  async function saveDatabaseConfigLayer(nextConfig: PriestessConfig) {
+    databaseConfigLayer.value = await dashboardApi.replaceDatabaseConfigLayer(nextConfig);
+    config.value = databaseConfigLayer.value.config;
+    await refreshConfigSurfaces();
+  }
+
+  async function refreshConfigSurfaces() {
+    const [nextDatabaseConfigLayer, nextEnvironmentOverrides, nextWorkingDirectory, nextEffectiveRuntimePreview, nextBackups, nextConfig] =
+      await Promise.all([
+        dashboardApi.databaseConfigLayer(),
+        dashboardApi.environmentOverrideSummary(),
+        dashboardApi.workingDirectorySummary(),
+        dashboardApi.effectiveRuntimePreview(),
+        dashboardApi.configBackups(),
+        dashboardApi.config(),
+      ]);
+    databaseConfigLayer.value = nextDatabaseConfigLayer;
+    environmentOverrides.value = nextEnvironmentOverrides;
+    workingDirectory.value = nextWorkingDirectory;
+    effectiveRuntimePreview.value = nextEffectiveRuntimePreview;
+    configBackups.value = nextBackups;
+    config.value = nextConfig;
+    lastUpdated.value = Date.now();
+  }
+
+  async function updateWorkingDirectory(path: string) {
+    workingDirectory.value = await dashboardApi.updateWorkingDirectorySelection({ path });
+    await refreshConfigSurfaces();
+  }
+
+  async function previewEffectiveRuntime(request: EffectiveRuntimePreviewRequest = {}) {
+    effectiveRuntimePreview.value = await dashboardApi.effectiveRuntimePreview(request);
+    return effectiveRuntimePreview.value;
+  }
+
   async function updateToolAllowance(toolName: string, allowed: boolean) {
     if (!config.value) throw new Error('Config is not loaded');
     const nextConfig = JSON.parse(JSON.stringify(config.value)) as PriestessConfig;
@@ -148,7 +226,11 @@ export const useDashboardStore = defineStore('dashboard', () => {
   return {
     health,
     config,
+    databaseConfigLayer,
     configBackups,
+    environmentOverrides,
+    workingDirectory,
+    effectiveRuntimePreview,
     platforms,
     providers,
     providerTests,
@@ -171,6 +253,10 @@ export const useDashboardStore = defineStore('dashboard', () => {
     discoverPlugins,
     setPluginState,
     saveConfig,
+    saveDatabaseConfigLayer,
+    refreshConfigSurfaces,
+    updateWorkingDirectory,
+    previewEffectiveRuntime,
     updateToolAllowance,
     loadConfigBackups,
     restoreConfigBackup,

@@ -1,7 +1,8 @@
 import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const root = resolve(import.meta.dirname, '..');
+const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const workspaceView = readFileSync(resolve(root, 'src/views/WorkspaceView.vue'), 'utf8');
 const dashboardApi = readFileSync(resolve(root, 'src/api/dashboard.ts'), 'utf8');
 

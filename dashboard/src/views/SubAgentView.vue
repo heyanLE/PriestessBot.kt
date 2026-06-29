@@ -1,9 +1,60 @@
 <template>
-  <div class="grid sub-agent-layout">
-    <section class="panel">
+  <div class="subagent-command">
+    <section class="panel subagent-hero">
+      <div class="subagent-hero-grid">
+        <div class="subagent-copy">
+          <div class="subagent-band">
+            <span>Priestess / Delegation Desk</span>
+            <span>Sub-Agent Orchestration</span>
+          </div>
+
+          <h2>Delegation control board</h2>
+          <p>
+            Tune routing rules, enable or suppress specialist lanes, and run draft delegation tests
+            from one daytime console before requests leave the primary agent.
+          </p>
+
+          <div class="grid subagent-signal-grid">
+            <article v-for="signal in subagentSignals" :key="signal.label" class="card subagent-signal" :class="`tone-${signal.tone}`">
+              <span>{{ signal.label }}</span>
+              <strong>{{ signal.value }}</strong>
+              <p>{{ signal.detail }}</p>
+            </article>
+          </div>
+        </div>
+
+        <aside class="subagent-rail">
+          <article class="card subagent-rail-card">
+            <div class="section-title compact">
+              <div>
+                <h3>Control doctrine</h3>
+                <p>Routes should stay explicit, testable, and easy to disable when the shell changes.</p>
+              </div>
+            </div>
+
+            <div class="rail-list">
+              <div class="rail-item">
+                <span>Saved posture</span>
+                <strong>{{ loadedConfig.enabled ? 'Routing enabled' : 'Routing disabled' }}</strong>
+              </div>
+              <div class="rail-item">
+                <span>Draft state</span>
+                <strong>{{ canEditStructured ? 'Structured editing ready' : 'Draft invalid' }}</strong>
+              </div>
+              <div class="rail-item">
+                <span>Latest test</span>
+                <strong>{{ testResult ? testResult.selectedAgentName : 'No test run yet' }}</strong>
+              </div>
+            </div>
+          </article>
+        </aside>
+      </div>
+    </section>
+
+    <section class="panel config-panel">
       <div class="section-title">
         <div>
-          <h2>Orchestration Config</h2>
+          <h2>Orchestration config</h2>
           <p>{{ configStatus }}</p>
         </div>
         <div class="toolbar">
@@ -33,131 +84,192 @@
 
       <textarea v-model="draft" class="sub-agent-config-editor" spellcheck="false"></textarea>
       <p v-if="draftError" class="notice error">{{ draftError }}</p>
-      <p v-if="saveNotice" class="notice">{{ saveNotice }}</p>
+      <p v-if="saveNotice" class="notice ok">{{ saveNotice }}</p>
     </section>
 
-    <section class="panel">
-      <div class="section-title">
-        <div>
-          <h2>Rule Editor</h2>
-          <p>Structured controls update the JSON draft.</p>
+    <div class="workbench-grid wide-detail">
+      <section class="panel editor-panel">
+        <div class="section-title">
+          <div>
+            <h2>Rule editor</h2>
+            <p>Structured controls update the JSON draft without hiding the raw contract.</p>
+          </div>
         </div>
-      </div>
 
-      <div class="rule-controls">
-        <label class="toggle-row">
-          <input type="checkbox" :checked="parsedConfig.enabled" :disabled="!canEditStructured" @change="setEnabled(($event.target as HTMLInputElement).checked)" />
-          <span>Enable sub-agent routing</span>
-        </label>
+        <div class="rule-controls">
+          <label class="toggle-row">
+            <input
+              type="checkbox"
+              :checked="parsedConfig.enabled"
+              :disabled="!canEditStructured"
+              @change="setEnabled(($event.target as HTMLInputElement).checked)"
+            />
+            <span>Enable sub-agent routing</span>
+          </label>
 
-        <label class="field-row">
-          <span>Default agent</span>
-          <select :value="parsedConfig.defaultAgentName" :disabled="!canEditStructured || parsedConfig.agents.length === 0" @change="setDefaultAgent(($event.target as HTMLSelectElement).value)">
-            <option value="">Primary agent</option>
+          <label class="field-row">
+            <span>Default agent</span>
+            <select
+              :value="parsedConfig.defaultAgentName"
+              :disabled="!canEditStructured || parsedConfig.agents.length === 0"
+              @change="setDefaultAgent(($event.target as HTMLSelectElement).value)"
+            >
+              <option value="">Primary agent</option>
+              <option v-for="agent in parsedConfig.agents" :key="agent.name" :value="agent.name">{{ agent.name }}</option>
+            </select>
+          </label>
+        </div>
+
+        <form class="structured-form" @submit.prevent="addAgent">
+          <input v-model="newAgentName" type="text" placeholder="Agent name" />
+          <input v-model="newAgentDescription" type="text" placeholder="Description" />
+          <button type="submit" class="primary" :disabled="!canEditStructured || newAgentName.trim().length === 0">
+            Add Agent
+          </button>
+        </form>
+
+        <div class="grid structured-card-list">
+          <article v-for="agent in parsedConfig.agents" :key="agent.name" class="card structured-card">
+            <div>
+              <strong>{{ agent.name }}</strong>
+              <p>{{ agent.description || agent.agent.providerName }}</p>
+            </div>
+            <div class="toolbar">
+              <button type="button" @click="toggleAgent(agent.name)" :disabled="!canEditStructured">
+                {{ agent.enabled ? 'Disable' : 'Enable' }}
+              </button>
+              <button type="button" @click="removeAgent(agent.name)" :disabled="!canEditStructured">Remove</button>
+            </div>
+          </article>
+        </div>
+
+        <form class="structured-form route-form" @submit.prevent="addRoute">
+          <input v-model="newRouteName" type="text" placeholder="Route name" />
+          <select v-model="newRouteTarget" :disabled="parsedConfig.agents.length === 0">
+            <option value="">Target agent</option>
             <option v-for="agent in parsedConfig.agents" :key="agent.name" :value="agent.name">{{ agent.name }}</option>
           </select>
-        </label>
-      </div>
+          <input v-model="newRouteKeywords" type="text" placeholder="Keywords, comma separated" />
+          <button
+            type="submit"
+            class="primary"
+            :disabled="!canEditStructured || newRouteName.trim().length === 0 || newRouteTarget.length === 0"
+          >
+            Add Route
+          </button>
+        </form>
 
-      <form class="structured-form" @submit.prevent="addAgent">
-        <input v-model="newAgentName" type="text" placeholder="Agent name" />
-        <input v-model="newAgentDescription" type="text" placeholder="Description" />
-        <button type="submit" class="primary" :disabled="!canEditStructured || newAgentName.trim().length === 0">Add Agent</button>
-      </form>
-
-      <div class="grid structured-card-list">
-        <article v-for="agent in parsedConfig.agents" :key="agent.name" class="card structured-card">
-          <div>
-            <strong>{{ agent.name }}</strong>
-            <p>{{ agent.description || agent.agent.providerName }}</p>
-          </div>
-          <div class="toolbar">
-            <button type="button" @click="toggleAgent(agent.name)" :disabled="!canEditStructured">
-              {{ agent.enabled ? 'Disable' : 'Enable' }}
-            </button>
-            <button type="button" @click="removeAgent(agent.name)" :disabled="!canEditStructured">Remove</button>
-          </div>
-        </article>
-      </div>
-
-      <form class="structured-form route-form" @submit.prevent="addRoute">
-        <input v-model="newRouteName" type="text" placeholder="Route name" />
-        <select v-model="newRouteTarget" :disabled="parsedConfig.agents.length === 0">
-          <option value="">Target agent</option>
-          <option v-for="agent in parsedConfig.agents" :key="agent.name" :value="agent.name">{{ agent.name }}</option>
-        </select>
-        <input v-model="newRouteKeywords" type="text" placeholder="Keywords, comma separated" />
-        <button type="submit" class="primary" :disabled="!canEditStructured || newRouteName.trim().length === 0 || newRouteTarget.length === 0">Add Route</button>
-      </form>
-    </section>
-
-    <section class="panel">
-      <div class="section-title">
-        <div>
-          <h2>Route Summary</h2>
-          <p>Parsed from the current editor draft.</p>
+        <div class="route-table-wrap">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Route</th>
+                <th>Target</th>
+                <th>Keywords</th>
+                <th>Priority</th>
+                <th>State</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="route in parsedConfig.routes" :key="route.name">
+                <td>{{ route.name }}</td>
+                <td>
+                  <select
+                    :value="route.targetAgentName"
+                    :disabled="!canEditStructured"
+                    @change="updateRoute(route.name, { targetAgentName: ($event.target as HTMLSelectElement).value })"
+                  >
+                    <option v-for="agent in parsedConfig.agents" :key="agent.name" :value="agent.name">{{ agent.name }}</option>
+                  </select>
+                </td>
+                <td>
+                  <input
+                    :value="route.keywords.join(', ')"
+                    :disabled="!canEditStructured"
+                    @change="updateRoute(route.name, { keywords: splitKeywords(($event.target as HTMLInputElement).value) })"
+                  />
+                </td>
+                <td>
+                  <input
+                    class="number-input"
+                    type="number"
+                    :value="route.priority"
+                    :disabled="!canEditStructured"
+                    @change="updateRoute(route.name, { priority: Number(($event.target as HTMLInputElement).value) || 0 })"
+                  />
+                </td>
+                <td>
+                  <div class="route-actions">
+                    <button type="button" @click="updateRoute(route.name, { enabled: !route.enabled })" :disabled="!canEditStructured">
+                      {{ route.enabled ? 'Disable' : 'Enable' }}
+                    </button>
+                    <button type="button" @click="removeRoute(route.name)" :disabled="!canEditStructured">Remove</button>
+                  </div>
+                </td>
+              </tr>
+              <tr v-if="parsedConfig.routes.length === 0">
+                <td colspan="5" class="muted">No routes configured.</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
-      </div>
+      </section>
 
-      <EmptyState v-if="parsedConfig.agents.length === 0" title="No sub-agents" detail="Add agents to the JSON config to enable routing targets." />
-      <div v-else class="grid list-grid sub-agent-list">
-        <article v-for="agent in parsedConfig.agents" :key="agent.name" class="card">
-          <div class="section-title">
-            <h3>{{ agent.name }}</h3>
-            <span class="inline-status" :class="agent.enabled ? 'ok' : 'muted'">{{ agent.enabled ? 'Enabled' : 'Disabled' }}</span>
+      <aside class="panel detail-panel detail-rail">
+        <div class="section-title">
+          <div>
+            <h2>Route summary</h2>
+            <p>Delegation posture derived from the current draft.</p>
           </div>
-          <p>{{ agent.description || agent.agent.instructions || 'No description' }}</p>
-          <p>{{ agent.agent.providerName }} / {{ agent.agent.model }}</p>
-        </article>
-      </div>
+        </div>
 
-      <div class="route-table-wrap">
-        <table class="table">
-          <thead>
-            <tr>
-              <th>Route</th>
-              <th>Target</th>
-              <th>Keywords</th>
-              <th>Priority</th>
-              <th>State</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="route in parsedConfig.routes" :key="route.name">
-              <td>{{ route.name }}</td>
-              <td>
-                <select :value="route.targetAgentName" :disabled="!canEditStructured" @change="updateRoute(route.name, { targetAgentName: ($event.target as HTMLSelectElement).value })">
-                  <option v-for="agent in parsedConfig.agents" :key="agent.name" :value="agent.name">{{ agent.name }}</option>
-                </select>
-              </td>
-              <td>
-                <input :value="route.keywords.join(', ')" :disabled="!canEditStructured" @change="updateRoute(route.name, { keywords: splitKeywords(($event.target as HTMLInputElement).value) })" />
-              </td>
-              <td>
-                <input class="number-input" type="number" :value="route.priority" :disabled="!canEditStructured" @change="updateRoute(route.name, { priority: Number(($event.target as HTMLInputElement).value) || 0 })" />
-              </td>
-              <td>
-                <div class="route-actions">
-                  <button type="button" @click="updateRoute(route.name, { enabled: !route.enabled })" :disabled="!canEditStructured">
-                    {{ route.enabled ? 'Disable' : 'Enable' }}
-                  </button>
-                  <button type="button" @click="removeRoute(route.name)" :disabled="!canEditStructured">Remove</button>
+        <EmptyState
+          v-if="parsedConfig.agents.length === 0"
+          title="No sub-agents"
+          detail="Add agents to the JSON config to enable routing targets."
+        />
+
+        <div v-else class="detail-stack">
+          <article class="card subagent-rail-card">
+            <div class="grid detail-stat-grid">
+              <article class="detail-stat">
+                <span>Agents</span>
+                <strong>{{ parsedConfig.agents.length }}</strong>
+              </article>
+              <article class="detail-stat">
+                <span>Routes</span>
+                <strong>{{ parsedConfig.routes.length }}</strong>
+              </article>
+              <article class="detail-stat">
+                <span>Enabled</span>
+                <strong>{{ parsedConfig.agents.filter((agent) => agent.enabled).length }}</strong>
+              </article>
+            </div>
+          </article>
+
+          <div class="grid list-grid sub-agent-list">
+            <article v-for="agent in parsedConfig.agents" :key="agent.name" class="card agent-card">
+              <div class="section-title compact">
+                <div>
+                  <h3>{{ agent.name }}</h3>
+                  <p>{{ agent.agent.providerName }} / {{ agent.agent.model || 'model unset' }}</p>
                 </div>
-              </td>
-            </tr>
-            <tr v-if="parsedConfig.routes.length === 0">
-              <td colspan="5" class="muted">No routes configured.</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </section>
+                <span class="inline-status" :class="agent.enabled ? 'ok' : 'muted'">
+                  {{ agent.enabled ? 'Enabled' : 'Disabled' }}
+                </span>
+              </div>
+              <p>{{ agent.description || agent.agent.instructions || 'No description' }}</p>
+            </article>
+          </div>
+        </div>
+      </aside>
+    </div>
 
     <section class="panel test-panel">
       <div class="section-title">
         <div>
-          <h2>Routing Test</h2>
-          <p>Runs the draft config through the Dashboard sub-agent API.</p>
+          <h2>Routing test</h2>
+          <p>Runs the current draft through the dashboard sub-agent API.</p>
         </div>
       </div>
 
@@ -166,7 +278,12 @@
         <button type="submit" class="primary" :disabled="testing || testMessage.trim().length === 0">Test</button>
       </form>
 
-      <EmptyState v-if="!testResult" title="No test result" detail="Submit a message to inspect selected agent and route events." />
+      <EmptyState
+        v-if="!testResult"
+        title="No test result"
+        detail="Submit a message to inspect selected agent and route events."
+      />
+
       <div v-else class="grid test-result-grid">
         <article class="card metric">
           <strong>{{ testResult.status }}</strong>
@@ -245,10 +362,38 @@ const draftSummary = computed(() => ({
   agentCount: parsedConfig.value.agents.length,
   routeCount: parsedConfig.value.routes.length,
 }));
+
 const configStatus = computed(() => {
   if (loading.value) return 'Loading current sub-agent config.';
   return loadedConfig.value.enabled ? 'Saved config is enabled.' : 'Saved config is disabled.';
 });
+
+const subagentSignals = computed(() => [
+  {
+    label: 'Routing',
+    value: draftSummary.value.enabled ? 'On' : 'Off',
+    detail: draftSummary.value.enabled ? 'Delegation lanes are enabled in the current draft.' : 'Delegation remains parked in the current draft.',
+    tone: draftSummary.value.enabled ? 'ok' : 'muted',
+  },
+  {
+    label: 'Agents',
+    value: String(draftSummary.value.agentCount),
+    detail: 'Specialist lanes defined in the active orchestration draft.',
+    tone: draftSummary.value.agentCount > 0 ? 'ok' : 'muted',
+  },
+  {
+    label: 'Routes',
+    value: String(draftSummary.value.routeCount),
+    detail: 'Explicit routing rules available for delegation.',
+    tone: draftSummary.value.routeCount > 0 ? 'warn' : 'muted',
+  },
+  {
+    label: 'Latest test',
+    value: testResult.value?.selectedAgentName ?? 'None',
+    detail: testResult.value ? 'Most recent routing test selected this agent.' : 'Run a routing test to inspect delegation behavior.',
+    tone: testResult.value ? 'ok' : 'muted',
+  },
+]);
 
 function formatConfig(config: SubAgentOrchestrationConfig) {
   return JSON.stringify(config, null, 2);
@@ -323,9 +468,7 @@ function addAgent() {
 function toggleAgent(name: string) {
   updateDraftConfig((config) => ({
     ...config,
-    agents: config.agents.map((agent) => (
-      agent.name === name ? { ...agent, enabled: !agent.enabled } : agent
-    )),
+    agents: config.agents.map((agent) => (agent.name === name ? { ...agent, enabled: !agent.enabled } : agent)),
   }));
 }
 
@@ -363,9 +506,7 @@ function addRoute() {
 function updateRoute(name: string, patch: Partial<SubAgentRouteConfig>) {
   updateDraftConfig((config) => ({
     ...config,
-    routes: config.routes.map((route) => (
-      route.name === name ? { ...route, ...patch } : route
-    )),
+    routes: config.routes.map((route) => (route.name === name ? { ...route, ...patch } : route)),
   }));
 }
 
@@ -446,3 +587,231 @@ async function runTest() {
 
 onMounted(() => void loadConfig());
 </script>
+
+<style scoped>
+.subagent-command {
+  display: grid;
+  gap: 14px;
+}
+
+.subagent-hero {
+  border-color: #d7cebd;
+  background:
+    linear-gradient(135deg, rgba(255, 252, 246, 0.98) 0%, rgba(247, 241, 231, 0.98) 55%, rgba(240, 246, 248, 0.98) 100%);
+}
+
+.subagent-hero-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.18fr) minmax(280px, 0.82fr);
+  gap: 14px;
+}
+
+.subagent-band {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.subagent-band span,
+.subagent-signal span,
+.rail-item span,
+.detail-stat span {
+  color: #887152;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.subagent-band span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid rgba(182, 159, 111, 0.34);
+  background: rgba(255, 251, 245, 0.92);
+}
+
+.subagent-copy h2 {
+  margin: 0;
+  color: #18304c;
+  font-size: clamp(28px, 2vw + 18px, 40px);
+  line-height: 0.98;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.subagent-copy > p {
+  margin: 12px 0 0;
+  color: #5c6776;
+  line-height: 1.66;
+}
+
+.subagent-signal-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 16px;
+}
+
+.subagent-signal {
+  display: grid;
+  gap: 8px;
+  border-top: 3px solid #98a2b0;
+  background: rgba(255, 252, 247, 0.9);
+}
+
+.subagent-signal.tone-ok {
+  border-top-color: #4c8661;
+}
+
+.subagent-signal.tone-warn {
+  border-top-color: #bb8524;
+}
+
+.subagent-signal.tone-muted {
+  border-top-color: #98a2b0;
+}
+
+.subagent-signal strong {
+  color: #17304d;
+  font-size: 28px;
+  line-height: 1;
+  overflow-wrap: anywhere;
+}
+
+.subagent-signal p {
+  margin: 0;
+  color: #606a79;
+  font-size: 12px;
+  line-height: 1.58;
+}
+
+.subagent-rail,
+.detail-stack {
+  display: grid;
+  gap: 12px;
+}
+
+.subagent-rail-card,
+.config-panel,
+.editor-panel,
+.detail-rail,
+.test-panel {
+  border-color: #ddd4c5;
+  background: rgba(255, 252, 246, 0.92);
+}
+
+.rail-list {
+  display: grid;
+  gap: 10px;
+}
+
+.rail-item {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  border: 1px solid #e3dacb;
+  background: rgba(255, 251, 245, 0.92);
+}
+
+.rail-item strong {
+  color: #19314d;
+  font-size: 14px;
+  line-height: 1.46;
+}
+
+.config-panel,
+.editor-panel,
+.detail-rail,
+.test-panel {
+  border-color: #ddd3c3;
+  background: linear-gradient(180deg, rgba(255, 252, 247, 0.96) 0%, rgba(248, 243, 234, 0.94) 100%);
+}
+
+.sub-agent-config-editor {
+  min-height: 300px;
+}
+
+.rule-controls,
+.structured-card-list,
+.route-actions {
+  display: grid;
+  gap: 10px;
+}
+
+.structured-form {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.structured-card-list {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 14px;
+}
+
+.structured-card {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.toggle-row,
+.field-row {
+  display: grid;
+  gap: 6px;
+}
+
+.field-row span {
+  color: #6f7a88;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.detail-stat-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.detail-stat {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid #e3d9c8;
+  background: rgba(255, 252, 247, 0.92);
+}
+
+.detail-stat strong {
+  color: #18314d;
+  font-size: 22px;
+  line-height: 1;
+}
+
+.test-result-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.response-card {
+  grid-column: span 2;
+}
+
+@media (max-width: 1180px) {
+  .subagent-hero-grid,
+  .workbench-grid.wide-detail,
+  .test-result-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 900px) {
+  .subagent-signal-grid,
+  .structured-form,
+  .structured-card-list,
+  .detail-stat-grid {
+    grid-template-columns: 1fr;
+  }
+}
+</style>
