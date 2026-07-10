@@ -143,20 +143,13 @@ class PersonaMemoryInjector(
     ): Map<String, String> {
         val metadata = mutableMapOf<String, String>()
         if (persona != null) {
-            metadata["injected_persona_id"] = persona.id
             metadata["injectedPersonaId"] = persona.id
-            metadata["injected_persona_name"] = persona.name
             metadata["injectedPersonaName"] = persona.name
         }
         if (memories.isNotEmpty()) {
-            metadata["injected_memory_ids"] = memories.joinToString(",") { it.record.id }
             metadata["injectedMemoryIds"] = memories.joinToString(",") { it.record.id }
-            metadata["injected_memory_scores"] = memories.joinToString(",") { "${it.record.id}:${it.score}" }
-            metadata["injectedMemoryScores"] = memories.joinToString(",") { "${it.record.id}:${it.score}" }
-            metadata["injected_memory_reasons"] = memories.joinToString(" | ") { "${it.record.id}:${it.matchReason}" }
             metadata["injectedMemoryReasons"] = memories.joinToString(" | ") { "${it.record.id}:${it.matchReason}" }
         }
-        metadata["injected_memory_count"] = memories.size.toString()
         metadata["injectedMemoryCount"] = memories.size.toString()
         return metadata
     }

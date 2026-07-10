@@ -190,14 +190,15 @@ private val json = Json {
 }
 
 private fun AgentToolContext.toReminderScopeContext(): ReminderScopeContext {
+    val metadata = this.metadata
+    val platform = this.platform
+    val session = this.session
     return ReminderScopeContext(
-        workspaceId = metadata["workspace_id"]
-            ?: metadata["workspaceId"]
-            ?: MemoryScopeContext.DEFAULT_WORKSPACE_ID,
-        platformId = metadata["platform_id"] ?: metadata["platformId"] ?: platform?.metadata?.name,
-        sessionId = metadata["session_id"] ?: metadata["sessionId"] ?: session?.id,
+        workspaceId = metadata["workspaceId"] ?: MemoryScopeContext.DEFAULT_WORKSPACE_ID,
+        platformId = metadata["platformId"] ?: platform?.metadata?.name,
+        sessionId = metadata["sessionId"] ?: session?.id,
         sessionType = session?.type,
-        userId = metadata["user_id"] ?: metadata["userId"],
+        userId = metadata["userId"],
     )
 }
 

@@ -3,10 +3,10 @@
     <section class="panel command-panel">
       <div class="command-header">
         <div class="command-copy">
-          <p class="eyebrow">Priestess Tactical Console / Day Shift</p>
+          <p class="eyebrow">Changes / Config</p>
           <div class="command-title-row">
             <div>
-              <h2>Config Day Operations</h2>
+              <h2>Manage persisted config.</h2>
               <p>{{ configSummary }}</p>
             </div>
             <div class="command-statuses">
@@ -16,7 +16,7 @@
             </div>
           </div>
           <p class="command-brief">
-            Keep the persisted layer calm, visible, and ready for runtime handoff while higher-order overrides stay in view.
+            Keep the persisted layer readable, review higher-order overrides, and validate the effective runtime before rollout.
           </p>
         </div>
         <div class="toolbar command-toolbar">
@@ -33,8 +33,8 @@
       <article class="card command-hero">
         <div class="hero-grid">
           <div class="hero-main">
-            <p class="eyebrow">Hermes Shell / Configuration Desk</p>
-            <h3>Daylight tactical board for the database layer.</h3>
+            <p class="eyebrow">Runtime configuration</p>
+            <h3>Review the database layer before it reaches production traffic.</h3>
             <p>{{ commandNarrative }}</p>
             <div class="hero-links">
               <RouterLink class="button-link" to="/effective-runtime">Open Effective Runtime</RouterLink>
@@ -86,7 +86,7 @@
                 <div class="section-index">A1</div>
                 <div class="section-copy">
                   <h3>Agent Core</h3>
-                  <p>Shape the Priestess runtime defaults that this persisted layer hands to the active shell.</p>
+                  <p>Shape the default agent settings that this persisted layer hands to the effective runtime.</p>
                 </div>
               </div>
               <div class="section-meta">
@@ -109,7 +109,7 @@
             <div class="form-grid tactical-form-grid">
               <label>
                 <span>Name</span>
-                <input v-model="draft.agent.name" type="text" placeholder="Priestess primary runtime" />
+                <input v-model="draft.agent.name" type="text" placeholder="Primary runtime agent" />
               </label>
               <label>
                 <span>Provider</span>
@@ -1530,6 +1530,68 @@ onMounted(async () => {
   padding: 1px 4px;
   border-radius: 5px;
   background: rgba(233, 238, 245, 0.9);
+}
+
+.tactical-config-view .command-panel,
+.tactical-config-view .tactical-rail,
+.tactical-config-view .command-hero,
+.tactical-config-view .section-block,
+.tactical-config-view .rail-card,
+.tactical-config-view .recovery-panel {
+  border-color: var(--line);
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 10px 30px rgba(9, 9, 11, 0.04);
+}
+
+.tactical-config-view .command-panel::before,
+.tactical-config-view .tactical-rail::before,
+.tactical-config-view .command-hero::after {
+  display: none;
+}
+
+.tactical-config-view .eyebrow,
+.tactical-config-view .hero-stat span,
+.tactical-config-view .trace-top span,
+.tactical-config-view .backup-meta span,
+.tactical-config-view .tactical-form-grid label span {
+  color: var(--weak);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.tactical-config-view .command-title-row h2,
+.tactical-config-view .hero-main h3,
+.tactical-config-view .section-copy h3 {
+  color: var(--text-strong);
+  letter-spacing: -0.03em;
+  text-transform: none;
+}
+
+.tactical-config-view .command-brief,
+.tactical-config-view .hero-main p:last-of-type,
+.tactical-config-view .section-copy p,
+.tactical-config-view .hero-stat small,
+.tactical-config-view .section-banner p,
+.tactical-config-view .trace-card small,
+.tactical-config-view .drift-item small {
+  color: var(--muted);
+}
+
+.tactical-config-view .tactical-metric,
+.tactical-config-view .trace-card,
+.tactical-config-view .drift-item,
+.tactical-config-view .override-banner,
+.tactical-config-view .hero-stat,
+.tactical-config-view .section-banner,
+.tactical-config-view .backup-row {
+  border-color: var(--line);
+  background: rgba(250, 250, 250, 0.92);
+}
+
+.tactical-config-view .tactical-form-grid label {
+  border-color: var(--line);
+  background: rgba(250, 250, 250, 0.78);
 }
 
 @media (max-width: 1180px) {

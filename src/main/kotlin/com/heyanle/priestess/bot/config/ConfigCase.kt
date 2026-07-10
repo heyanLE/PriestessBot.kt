@@ -18,6 +18,7 @@ class ConfigCase(
     val serverConfigFlow = controller.serverConfigFlow
     val pluginConfigFlow = controller.pluginConfigFlow
     val subAgentConfigFlow = controller.subAgentConfigFlow
+    val workspaceRuntimeConfigFlow = controller.workspaceRuntimeConfigFlow
 
     /**
      * 获取当前生效配置。

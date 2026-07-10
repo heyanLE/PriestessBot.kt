@@ -6,13 +6,12 @@ import com.heyanle.priestess.bot.config.ConfigCase
 import com.heyanle.priestess.bot.conversation.ConversationCase
 import com.heyanle.priestess.bot.core.controller.BaseController
 import com.heyanle.priestess.bot.observability.ObservabilityCase
-import com.heyanle.priestess.bot.pipeline.stages.ContentSafetyStage
+import com.heyanle.priestess.bot.pipeline.stages.PrepareWorkspaceStage
 import com.heyanle.priestess.bot.pipeline.stages.PreProcessStage
 import com.heyanle.priestess.bot.pipeline.stages.ProcessStage
 import com.heyanle.priestess.bot.pipeline.stages.RateLimitStage
 import com.heyanle.priestess.bot.pipeline.stages.RespondStage
 import com.heyanle.priestess.bot.pipeline.stages.ResultDecorateStage
-import com.heyanle.priestess.bot.pipeline.stages.SessionStatusStage
 import com.heyanle.priestess.bot.pipeline.stages.WakingCheckStage
 import com.heyanle.priestess.bot.pipeline.stages.WhitelistCheckStage
 import com.heyanle.priestess.bot.persona.PersonaMemoryInjector
@@ -24,7 +23,6 @@ import com.heyanle.priestess.bot.workspace.WorkspaceCase
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.withTimeoutOrNull
@@ -107,9 +105,6 @@ class PipelineController private constructor(
                 } finally {
                     ctx.releaseWorkspace()
                 }
-            } catch (e: CancellationException) {
-                status = "failed"
-                throw e
             } catch (e: Exception) {
                 status = "failed"
                 throw e
@@ -153,7 +148,7 @@ class PipelineController private constructor(
         if (ctx.isStopped) return
 
         val stage = orderedStages[stageIndex]
-        val flow: Flow<Unit>? = try {
+        val postProcess = try {
             logger.info { "[PIPELINE-04${stage.order.level}] Enter stage ${stage.order.level}:${stage.name}" }
             stage.process(ctx)
         } catch (e: CancellationException) {
@@ -163,22 +158,18 @@ class PipelineController private constructor(
             return
         }
 
-        if (flow == null) {
-            logger.info {
-                "[PIPELINE-14${stage.order.level}] Exit stage ${stage.order.level}:${stage.name}, stopped=${ctx.isStopped}"
-            }
-            executePipeline(ctx, orderedStages, stageIndex + 1)
-        } else {
-            executePipeline(ctx, orderedStages, stageIndex + 1)
-            try {
-                logger.info { "[PIPELINE-24${stage.order.level}] Collect post stage ${stage.order.level}:${stage.name}" }
-                flow.collect {}
-                logger.info { "[PIPELINE-34${stage.order.level}] Post stage complete ${stage.order.level}:${stage.name}" }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                logger.error(e) { "[PIPELINE-69${stage.order.level}] Stage '${stage.name}' post-processing failed" }
-            }
+        logger.info {
+            "[PIPELINE-14${stage.order.level}] Exit stage ${stage.order.level}:${stage.name}, stopped=${ctx.isStopped}"
+        }
+        executePipeline(ctx, orderedStages, stageIndex + 1)
+
+        if (postProcess != null) try {
+            logger.info { "[PIPELINE-24${stage.order.level}] Collect post stage ${stage.order.level}:${stage.name}" }
+            postProcess.collect {}
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            logger.error(e) { "[PIPELINE-69${stage.order.level}] Stage '${stage.name}' post-processing failed" }
         }
     }
 
@@ -201,17 +192,17 @@ class PipelineController private constructor(
             return listOf(
                 WakingCheckStage(config.pipeline),
                 WhitelistCheckStage(config.pipeline),
-                SessionStatusStage(config.pipeline),
                 RateLimitStage(config.pipeline),
-                ContentSafetyStage(config.pipeline),
+                PrepareWorkspaceStage(
+                    configCase = configCase,
+                    workspaceCase = workspaceCase,
+                ),
                 PreProcessStage(
                     agentConfig = config.agent,
-                    subAgentConfig = config.subAgents,
                     pipelineConfig = config.pipeline,
                     conversationCase = conversationCase,
                     agentCase = agentCase,
                     subAgentOrchestrator = subAgentOrchestrator,
-                    workspaceCase = workspaceCase,
                     personaMemoryInjector = personaMemoryInjector,
                     skillCase = skillCase,
                 ),

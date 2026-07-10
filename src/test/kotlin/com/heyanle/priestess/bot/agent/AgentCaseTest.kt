@@ -34,13 +34,13 @@ class AgentCaseTest {
     }
 
     @Test
-    fun `uses llm compression and falls back unknown strategy to round truncation`() {
+    fun `maps legacy llm compression to token window and unknown strategy to round truncation`() {
         val case = AgentCase(AgentController())
 
         val llmAgent = case.createAgent(agentConfig("llm_compress"))
         val fallbackAgent = case.createAgent(agentConfig("unknown"))
 
-        assertEquals(CompressStrategy.LLM_COMPRESS, llmAgent.compressStrategy)
+        assertEquals(CompressStrategy.TOKEN_WINDOW, llmAgent.compressStrategy)
         assertEquals(CompressStrategy.ROUND_TRUNCATION, fallbackAgent.compressStrategy)
     }
 

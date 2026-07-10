@@ -24,6 +24,10 @@ import com.heyanle.priestess.bot.tool.ToolCase
 import com.heyanle.priestess.bot.tool.ToolController
 import com.heyanle.priestess.bot.tool.ToolExecutor
 import com.heyanle.priestess.bot.tool.ToolResult
+import com.heyanle.priestess.bot.workspace.WorkspaceConfig
+import com.heyanle.priestess.bot.workspace.WorkspaceMemoryPolicyConfig
+import com.heyanle.priestess.bot.workspace.WorkspaceResolution
+import com.heyanle.priestess.bot.workspace.WorkspaceSnapshot
 import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -56,8 +60,13 @@ class MessageFlowSystemTest {
         providerController.register(provider)
         val metrics = MetricsRegistry()
         val observabilityCase = ObservabilityCase.standalone(metrics)
+        val toolCase = ToolCase(
+            controller = toolController,
+            executorProvider = { ToolExecutor(registry = toolController, observabilityCase = observabilityCase) },
+        )
         val controller = PipelineController(
             testStages = listOf(
+                PinWorkspaceStage(),
                 PreProcessStage(
                     agentConfig = AgentConfig(name = "system-agent", model = "fake-model", maxSteps = 4),
                     pipelineConfig = PipelineConfig(maxHistoryMessages = 5),
@@ -67,7 +76,7 @@ class MessageFlowSystemTest {
                 ProcessStage(
                     agentCase = AgentCase(),
                     providerCase = ProviderCase(providerController),
-                    toolCase = ToolCase(toolController),
+                    toolCase = toolCase,
                     observabilityCase = observabilityCase,
                 ),
                 ResultDecorateStage(),
@@ -106,5 +115,31 @@ class MessageFlowSystemTest {
         assertFalse(renderedMetrics.contains("question"))
         assertFalse(renderedMetrics.contains("tool observation"))
         assertFalse(renderedMetrics.contains("session-1"))
+    }
+
+    private class PinWorkspaceStage : Stage {
+        override val name = "PinWorkspace"
+        override val order = StageOrder.PREPARE_WORKSPACE
+
+        override suspend fun process(ctx: PipelineContext) = WorkspaceResolution(
+            snapshot = WorkspaceSnapshot(
+                id = "default",
+                name = "Default",
+                enabled = true,
+                version = 1,
+                loadedAt = 1_000L,
+                rootDir = "/tmp/workspace",
+                config = WorkspaceConfig(id = "default", name = "Default", isDefault = true),
+                agentConfigs = emptyList(),
+                providerName = "",
+                toolNames = listOf("lookup"),
+                skillDescriptors = emptyList(),
+                skillSettings = emptyMap(),
+                mcpServers = emptyList(),
+                personaIds = emptyList(),
+                memoryPolicy = WorkspaceMemoryPolicyConfig(),
+            ),
+            reason = "test workspace",
+        ).also(ctx::pinWorkspace).let { null }
     }
 }

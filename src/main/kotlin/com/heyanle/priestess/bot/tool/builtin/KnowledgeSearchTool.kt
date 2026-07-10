@@ -66,9 +66,7 @@ class KnowledgeSearchTool(
 }
 
 private fun Map<String, String>.workspaceKnowledgeBaseIds(): Set<String>? {
-    val raw = this["workspace_memory_knowledge_base_ids"]
-        ?: this["workspaceMemoryKnowledgeBaseIds"]
-        ?: return null
+    val raw = this["workspaceMemoryKnowledgeBaseIds"] ?: return null
     return raw.split(",")
         .map { it.trim() }
         .filter { it.isNotBlank() }

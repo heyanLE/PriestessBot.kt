@@ -4,14 +4,14 @@
       <div class="tactical-list-hero-grid">
         <div class="tactical-list-copy">
           <div class="tactical-list-band">
-            <span>Priestess / Extension Deck</span>
-            <span>Shell Discovery Board</span>
+            <span>Assets</span>
+            <span>Plugins</span>
           </div>
 
-          <h2>Plugin extension board</h2>
+          <h2>Plugin registry</h2>
           <p>
-            Track plugin lifecycle, failure posture, and extension spread from a structured daytime
-            operations deck before optional capabilities enter the shell.
+            Track plugin lifecycle, failure posture, and extension spread from one structured
+            registry before optional capabilities enter the runtime.
           </p>
 
           <div class="tactical-stat-grid">
@@ -39,7 +39,7 @@
         </div>
 
         <aside class="tactical-ledger">
-          <h3>Operational ledger</h3>
+          <h3>What matters here</h3>
           <p>Discovery stays separate from enablement so the shell can stay tidy while optional power grows.</p>
 
           <div class="tactical-ledger-row">
@@ -106,7 +106,7 @@
     <section v-if="store.plugins.plugins.length > 0" class="panel tactical-table-panel">
       <div class="section-title compact">
         <div>
-          <h2>Dense plugin matrix</h2>
+          <h2>Compact table</h2>
           <p>Compact lifecycle readout for fast operator sweeps.</p>
         </div>
       </div>

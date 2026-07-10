@@ -98,16 +98,16 @@ class NapCatPlatform(
         _client = null
     }
 
-    override suspend fun sendMessage(session: MessageSession, chain: MessageChain) {
+    override suspend fun sendMessage(session: MessageSession, chain: MessageChain): String? {
         val text = chain.textContent
         require(text.isNotBlank()) { "Message text must not be blank" }
         when (session.type) {
             SessionType.PRIVATE -> {
                 logger.info { "[PIPELINE-301] NapCat sending private message session=${session.id}, length=${text.length}" }
                 if (sendViaWebSocket("send_private_msg", "user_id", session.id.toLongOrNull() ?: 0L, text)) {
-                    return
+                    return null // 异步发送，无法同步获取 messageId
                 }
-                client.post("$baseUrl/send_private_msg") {
+                val response = client.post("$baseUrl/send_private_msg") {
                     addAuthHeader()
                     header(HttpHeaders.ContentType, "application/json")
                     setBody(buildJsonObject {
@@ -115,13 +115,14 @@ class NapCatPlatform(
                         put("message", textMessageArray(text))
                     })
                 }
+                return response.body<JsonObject>()["data"]?.jsonObject?.get("message_id")?.jsonPrimitive?.content
             }
             SessionType.GROUP -> {
                 logger.info { "[PIPELINE-302] NapCat sending group message session=${session.id}, length=${text.length}" }
                 if (sendViaWebSocket("send_group_msg", "group_id", session.id.toLongOrNull() ?: 0L, text)) {
-                    return
+                    return null // 异步发送，无法同步获取 messageId
                 }
-                client.post("$baseUrl/send_group_msg") {
+                val response = client.post("$baseUrl/send_group_msg") {
                     addAuthHeader()
                     header(HttpHeaders.ContentType, "application/json")
                     setBody(buildJsonObject {
@@ -129,8 +130,9 @@ class NapCatPlatform(
                         put("message", textMessageArray(text))
                     })
                 }
+                return response.body<JsonObject>()["data"]?.jsonObject?.get("message_id")?.jsonPrimitive?.content
             }
-            SessionType.CHANNEL -> Unit
+            SessionType.CHANNEL -> return null
         }
     }
 

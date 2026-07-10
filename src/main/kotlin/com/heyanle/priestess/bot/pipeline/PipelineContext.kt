@@ -4,59 +4,59 @@ import com.heyanle.priestess.bot.agent.AgentContext
 import com.heyanle.priestess.bot.agent.AgentResponse
 import com.heyanle.priestess.bot.platform.MessageEvent
 import com.heyanle.priestess.bot.workspace.WorkspaceResolution
-import com.heyanle.priestess.bot.workspace.WorkspaceSnapshotLease
 import com.heyanle.priestess.bot.workspace.WorkspaceSnapshot
 
 /**
  * Pipeline 上下文，贯穿所有阶段，携带：
  * - 原始事件引用
- * - 阶段间共享数据（通过 [shared] Map）
  * - Agent 上下文（PreProcess 阶段创建）
  * - 最终响应（Process 阶段填充）
+ * - 装饰后响应（ResultDecorate 阶段填充）
  */
 class PipelineContext(
     val event: MessageEvent,
 ) {
-    /** 阶段间共享数据（键值对） */
-    val shared: MutableMap<String, Any> = mutableMapOf()
-
     /** Agent 执行上下文，由 PreProcessStage 创建 */
     var agentContext: AgentContext? = null
 
     /** Agent 最终响应，由 ProcessStage 填充 */
     var agentResponse: AgentResponse? = null
 
-    /** Workspace snapshot pinned for this message, resolved during PreProcess. */
-    var workspaceSnapshot: WorkspaceSnapshot? = null
-        private set
+    /** 装饰后的响应文本，由 ResultDecorateStage 填充 */
+    var decoratedResponse: String? = null
 
-    var workspaceId: String? = null
-        private set
+    private var workspace: WorkspaceResolution? = null
 
-    var workspaceSnapshotVersion: Long? = null
-        private set
+    val workspaceSnapshot: WorkspaceSnapshot?
+        get() = workspace?.snapshot
 
-    var workspaceResolutionReason: String? = null
-        private set
+    val workspaceResolution: WorkspaceResolution?
+        get() = workspace
 
-    private var workspaceLease: WorkspaceSnapshotLease? = null
+    val workspaceId: String?
+        get() = workspace?.snapshot?.id
+
+    val workspaceSnapshotVersion: Long?
+        get() = workspace?.snapshot?.version
+
+    val workspaceRootDir: String?
+        get() = workspace?.snapshot?.rootDir
+
+    val workspaceResolutionReason: String?
+        get() = workspace?.reason
 
     /** 是否应终止管道（由各阶段设置） */
     val isStopped: Boolean
         get() = event.isStopped.get()
 
     fun pinWorkspace(resolution: WorkspaceResolution) {
-        workspaceLease?.close()
-        workspaceSnapshot = resolution.snapshot
-        workspaceId = resolution.snapshot.id
-        workspaceSnapshotVersion = resolution.snapshot.version
-        workspaceResolutionReason = resolution.reason
-        workspaceLease = resolution.lease
+        workspace?.lease?.close()
+        workspace = resolution
     }
 
     fun releaseWorkspace() {
-        workspaceLease?.close()
-        workspaceLease = null
+        workspace?.lease?.close()
+        workspace = null
     }
 
     fun stop() {

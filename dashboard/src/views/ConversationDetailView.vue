@@ -4,8 +4,8 @@
       <div class="conversation-hero-grid">
         <div class="conversation-copy">
           <div class="conversation-band">
-            <span>Priestess / Session Watch</span>
-            <span>{{ conversation?.platform ?? 'Conversation Ledger' }}</span>
+            <span>Troubleshooting</span>
+            <span>{{ conversation?.platform ?? 'Conversation Detail' }}</span>
           </div>
 
           <h2>{{ conversation?.sessionId ?? conversationId }}</h2>
@@ -24,8 +24,8 @@
           <article class="card conversation-rail-card">
             <div class="section-title compact">
               <div>
-                <h3>Session doctrine</h3>
-                <p>Read the thread as a tactical transcript, not a raw message dump.</p>
+                <h3>What matters here</h3>
+                <p>Read the thread as a transcript with evidence, not a raw message dump.</p>
               </div>
             </div>
 

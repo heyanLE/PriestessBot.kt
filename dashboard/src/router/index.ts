@@ -23,8 +23,8 @@ export const routes: RouteRecordRaw[] = [
     component: OverviewView,
     meta: {
       label: 'Overview',
-      group: 'Runtime',
-      summary: 'Strategic runtime overview and operational health.',
+      group: 'Overview',
+      summary: 'Operator workbench for runtime health, incidents, and recovery.',
     },
   },
   {
@@ -33,8 +33,8 @@ export const routes: RouteRecordRaw[] = [
     component: ConversationView,
     meta: {
       label: 'Conversations',
-      group: 'Runtime',
-      summary: 'Tracked session traffic and response timelines.',
+      group: 'Troubleshooting',
+      summary: 'Inspect traffic, session history, and execution context.',
     },
   },
   {
@@ -43,8 +43,8 @@ export const routes: RouteRecordRaw[] = [
     component: LogView,
     meta: {
       label: 'Logs',
-      group: 'Runtime',
-      summary: 'Live runtime events, warnings, and execution traces.',
+      group: 'Troubleshooting',
+      summary: 'Follow live runtime events, warnings, and execution traces.',
     },
   },
   {
@@ -53,8 +53,8 @@ export const routes: RouteRecordRaw[] = [
     component: ConfigView,
     meta: {
       label: 'Config',
-      group: 'Configuration',
-      summary: 'Persisted database layer and effective runtime posture.',
+      group: 'Changes',
+      summary: 'Review persisted configuration and apply controlled updates.',
     },
   },
   {
@@ -63,8 +63,8 @@ export const routes: RouteRecordRaw[] = [
     component: AgentView,
     meta: {
       label: 'Agent',
-      group: 'Configuration',
-      summary: 'Primary agent profile, tools, and validation chat.',
+      group: 'Changes',
+      summary: 'Tune the primary agent and validate behavior in one place.',
     },
   },
   {
@@ -73,8 +73,8 @@ export const routes: RouteRecordRaw[] = [
     component: ProviderView,
     meta: {
       label: 'Providers',
-      group: 'Configuration',
-      summary: 'Runtime provider inventory, health, and capabilities.',
+      group: 'Assets',
+      summary: 'Browse provider inventory, health, and capabilities.',
     },
   },
   {
@@ -83,8 +83,8 @@ export const routes: RouteRecordRaw[] = [
     component: SubAgentView,
     meta: {
       label: 'Sub-Agents',
-      group: 'Configuration',
-      summary: 'Delegation routes, target agents, and orchestration rules.',
+      group: 'Changes',
+      summary: 'Edit delegation routes and orchestration rules.',
     },
   },
   {
@@ -93,8 +93,8 @@ export const routes: RouteRecordRaw[] = [
     component: ToolView,
     meta: {
       label: 'Tools',
-      group: 'Configuration',
-      summary: 'Tool registry, policy posture, and runtime exposure.',
+      group: 'Assets',
+      summary: 'Inspect the tool registry, policy posture, and exposure.',
     },
   },
   {
@@ -103,8 +103,8 @@ export const routes: RouteRecordRaw[] = [
     component: PlatformView,
     meta: {
       label: 'Platforms',
-      group: 'System',
-      summary: 'Platform endpoints, state, and runtime entry points.',
+      group: 'Assets',
+      summary: 'Review platform endpoints, state, and runtime entry points.',
     },
   },
   {
@@ -113,8 +113,8 @@ export const routes: RouteRecordRaw[] = [
     component: PluginView,
     meta: {
       label: 'Plugins',
-      group: 'System',
-      summary: 'Plugin lifecycle, extension state, and discovery actions.',
+      group: 'Assets',
+      summary: 'Manage plugin lifecycle, extension state, and discovery.',
     },
   },
   {
@@ -123,8 +123,8 @@ export const routes: RouteRecordRaw[] = [
     component: PersonaMemoryView,
     meta: {
       label: 'Persona & Memory',
-      group: 'System',
-      summary: 'Persona overlays, memory records, and injection surfaces.',
+      group: 'Assets',
+      summary: 'Control persona overlays, memory records, and injection.',
     },
   },
   {
@@ -133,8 +133,8 @@ export const routes: RouteRecordRaw[] = [
     component: KnowledgeView,
     meta: {
       label: 'Knowledge',
-      group: 'System',
-      summary: 'Knowledge bases, retrieval quality, and source testing.',
+      group: 'Assets',
+      summary: 'Manage knowledge bases, retrieval quality, and source tests.',
     },
   },
   {
@@ -143,8 +143,8 @@ export const routes: RouteRecordRaw[] = [
     component: WorkingDirectoryView,
     meta: {
       label: 'Working Directory',
-      group: 'Operations',
-      summary: 'Workspace selection, discovered skills, and local overlays.',
+      group: 'Changes',
+      summary: 'Control workspace selection, local overlays, and discovery.',
     },
   },
   {
@@ -153,8 +153,8 @@ export const routes: RouteRecordRaw[] = [
     component: EffectiveRuntimeView,
     meta: {
       label: 'Effective Runtime',
-      group: 'Operations',
-      summary: 'Result-first view of the current layered runtime configuration.',
+      group: 'Changes',
+      summary: 'Trace the layered runtime configuration from result to source.',
     },
   },
   {
@@ -162,9 +162,9 @@ export const routes: RouteRecordRaw[] = [
     name: 'workspaces',
     component: WorkspaceView,
     meta: {
-      label: 'Diagnostics',
-      group: 'Operations',
-      summary: 'Workspace snapshots, reload plans, and tooling diagnostics.',
+      label: 'Workspaces',
+      group: 'Changes',
+      summary: 'Review workspace snapshots, reload plans, and diagnostics.',
     },
   },
   { path: '/conversations/:id', name: 'conversation-detail', component: ConversationDetailView, meta: { label: 'Conversation', nav: false } },

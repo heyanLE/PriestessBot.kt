@@ -4,14 +4,14 @@
       <div class="memory-hero-grid">
         <div class="memory-copy">
           <div class="memory-band">
-            <span>Priestess / Persona Memory</span>
+            <span>Assets</span>
             <span>Workspace {{ workspaceId }}</span>
           </div>
 
           <h2>Persona and memory registry</h2>
           <p>
-            Align persona overlays and retrieval records from one daytime control surface. Keep
-            injection tone, memory scope, and search relevance in view while you edit the registry.
+            Align persona overlays and retrieval records. Keep injection tone, memory scope, and
+            search relevance visible while you edit the registry.
           </p>
 
           <div class="grid memory-signal-grid">
@@ -27,7 +27,7 @@
           <article class="card memory-rail-card">
             <div class="section-title compact">
               <div>
-                <h3>Registry doctrine</h3>
+                <h3>What matters here</h3>
                 <p>Persona tone and memory scope should stay readable, scoped, and easy to test.</p>
               </div>
             </div>
@@ -834,6 +834,36 @@ onMounted(() => {
 .detail-rail {
   border-color: #ddd3c3;
   background: linear-gradient(180deg, rgba(255, 252, 247, 0.96) 0%, rgba(248, 243, 234, 0.94) 100%);
+}
+
+.memory-command .memory-hero,
+.memory-command .memory-rail-card,
+.memory-command .registry-panel,
+.memory-command .detail-rail,
+.memory-command .memory-signal,
+.memory-command .rail-item {
+  border-color: var(--line);
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.memory-command .memory-band span,
+.memory-command .memory-signal span,
+.memory-command .rail-item span {
+  color: var(--weak);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+}
+
+.memory-command .memory-copy h2 {
+  color: var(--text-strong);
+  letter-spacing: -0.04em;
+  text-transform: none;
+}
+
+.memory-command .memory-copy > p,
+.memory-command .rail-item strong,
+.memory-command .memory-signal p {
+  color: var(--muted);
 }
 
 @media (max-width: 1180px) {

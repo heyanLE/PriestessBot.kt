@@ -4,14 +4,14 @@
       <div class="log-hero-grid">
         <div class="log-copy">
           <div class="log-band">
-            <span>Priestess / Runtime Ledger</span>
-            <span>Day Shift Event Feed</span>
+            <span>Troubleshooting</span>
+            <span>Logs</span>
           </div>
 
-          <h2>Live event ledger</h2>
+          <h2>Follow the live event stream.</h2>
           <p>
-            Keep a clean daytime watch on runtime traffic, warnings, and execution faults. This
-            feed stays clipped to the latest two hundred events so the control room remains readable.
+            Track runtime traffic, warnings, and execution faults from one clean event stream. The
+            feed stays clipped to the latest two hundred events so scan speed stays high.
           </p>
 
           <div class="grid log-signal-grid">
@@ -55,7 +55,7 @@
       <section class="panel ledger-panel">
         <div class="section-title">
           <div>
-            <h2>Runtime ledger</h2>
+            <h2>Runtime stream</h2>
             <p>{{ logStore.connected ? 'Socket linked and accepting live runtime markers.' : 'Connect to receive runtime markers from the backend socket.' }}</p>
           </div>
           <div class="toolbar">

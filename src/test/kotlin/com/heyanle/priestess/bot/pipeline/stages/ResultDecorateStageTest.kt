@@ -14,8 +14,7 @@ class ResultDecorateStageTest {
 
         ResultDecorateStage().process(ctx)
 
-        assertEquals("hello", ctx.shared["decoratedResponse"])
-        assertEquals("text", ctx.shared["responseType"])
+        assertEquals("hello", ctx.decoratedResponse)
     }
 
     @Test
@@ -25,8 +24,7 @@ class ResultDecorateStageTest {
 
         ResultDecorateStage().process(ctx)
 
-        assertEquals("抱歉，处理您的请求超时了，请稍后再试或简化您的问题。", ctx.shared["decoratedResponse"])
-        assertEquals("error", ctx.shared["responseType"])
+        assertEquals("抱歉，处理您的请求超时了，请稍后再试或简化您的问题。", ctx.decoratedResponse)
     }
 
     @Test
@@ -35,7 +33,6 @@ class ResultDecorateStageTest {
 
         ResultDecorateStage().process(ctx)
 
-        assertEquals("未收到任何响应。", ctx.shared["decoratedResponse"])
-        assertEquals("error", ctx.shared["responseType"])
+        assertEquals("未收到任何响应。", ctx.decoratedResponse)
     }
 }

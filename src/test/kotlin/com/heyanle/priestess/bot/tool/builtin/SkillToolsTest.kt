@@ -1,7 +1,7 @@
 package com.heyanle.priestess.bot.tool.builtin
 
 import com.heyanle.priestess.bot.skill.PipelineSkillState
-import com.heyanle.priestess.bot.skill.SkillPromptDocument
+import com.heyanle.priestess.bot.skill.SkillPromptReference
 import com.heyanle.priestess.bot.tool.AgentToolContext
 import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
@@ -15,7 +15,7 @@ class SkillToolsTest {
         val tool = UseSkillTool()
         val context = AgentToolContext(
             skillState = PipelineSkillState(
-                listOf(SkillPromptDocument(name = "research", markdown = "# Skill: research")),
+                listOf(SkillPromptReference(name = "research", inlineMarkdown = "# Skill: research")),
             ),
         )
 
@@ -34,7 +34,7 @@ class SkillToolsTest {
     @Test
     fun `unload skill removes loaded document`() = runBlocking {
         val state = PipelineSkillState(
-            listOf(SkillPromptDocument(name = "research", markdown = "# Skill: research")),
+            listOf(SkillPromptReference(name = "research", inlineMarkdown = "# Skill: research")),
         )
         state.load("research")
         val context = AgentToolContext(skillState = state)

@@ -55,7 +55,7 @@ class ContextCompressionStrategiesTest {
     }
 
     @Test
-    fun `llm compression fallback preserves recent tool observation with system message`() = runBlocking {
+    fun `token window preserves recent tool observation with system message`() = runBlocking {
         val system = ConversationMessage.system("system")
         val toolCall = ToolCall(id = "call-1", name = "fake_tool", arguments = """{"value":"abc"}""")
         val messages = listOf(
@@ -68,7 +68,7 @@ class ContextCompressionStrategiesTest {
         )
 
         val result = ContextManager(tokenCounter).compress(
-            agent = testAgent().copy(compressStrategy = CompressStrategy.LLM_COMPRESS, maxContextTokens = 25),
+            agent = testAgent().copy(compressStrategy = CompressStrategy.TOKEN_WINDOW, maxContextTokens = 25),
             messages = messages,
             systemMessage = system,
         )
@@ -76,5 +76,29 @@ class ContextCompressionStrategiesTest {
         assertEquals("system", result.first().role)
         assertTrue(result.any { it.role == "assistant" && it.toolCalls?.firstOrNull()?.id == "call-1" })
         assertTrue(result.any { it.role == "tool" && it.toolCallId == "call-1" && it.content == "observation" })
+    }
+
+    @Test
+    fun `token window keeps tool message paired with parent assistant tool call`() = runBlocking {
+        val system = ConversationMessage.system("system")
+        val toolCall = ToolCall(id = "call-1", name = "fake_tool", arguments = """{"value":"abc"}""")
+        val messages = listOf(
+            system,
+            ConversationMessage.user("old old old old old old"),
+            ConversationMessage.assistant("older response with many many many tokens"),
+            ConversationMessage.user("latest user"),
+            ConversationMessage.assistant(content = "", toolCalls = listOf(toolCall)),
+            ConversationMessage.tool(toolCallId = "call-1", name = "fake_tool", content = "tool output"),
+        )
+
+        val result = ContextManager(tokenCounter).compress(
+            agent = testAgent().copy(compressStrategy = CompressStrategy.TOKEN_WINDOW, maxContextTokens = 18),
+            messages = messages,
+            systemMessage = system,
+        )
+
+        assertEquals("system", result.first().role)
+        assertTrue(result.any { it.role == "assistant" && it.toolCalls?.any { tc -> tc.id == "call-1" } == true })
+        assertTrue(result.any { it.role == "tool" && it.toolCallId == "call-1" && it.content == "tool output" })
     }
 }

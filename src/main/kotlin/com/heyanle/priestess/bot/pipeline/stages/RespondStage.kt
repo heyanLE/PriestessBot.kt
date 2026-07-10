@@ -20,11 +20,9 @@ class RespondStage : Stage {
     override val order = StageOrder.RESPOND
 
     override suspend fun process(ctx: PipelineContext): Flow<Unit>? {
-        val responseText = ctx.shared["decoratedResponse"] as? String
-        val responseType = ctx.shared["responseType"] as? String ?: "text"
-
+        val responseText = ctx.decoratedResponse
         if (responseText.isNullOrBlank()) {
-            log("[PIPELINE-391] Respond no response to send, skipping")
+            logger.info { "[PIPELINE-391] Respond no response to send, skipping" }
             return null
         }
 
@@ -33,20 +31,16 @@ class RespondStage : Stage {
 
         try {
             val chain = MessageChain.text(responseText)
-            log(
+            logger.info {
                 "[PIPELINE-310] Respond sending response platform=${platform.metadata.name}, " +
-                    "session=${session.id}, type=$responseType, length=${responseText.length}"
-            )
+                    "session=${session.id}, length=${responseText.length}"
+            }
             platform.sendMessage(session, chain)
-            log("[PIPELINE-319] Respond sent response preview='${responseText.take(100)}'")
+            logger.info { "[PIPELINE-319] Respond sent response preview='${responseText.take(100)}'" }
         } catch (e: Exception) {
             logger.error(e) { "[PIPELINE-993] Failed to send message" }
         }
 
         return null
-    }
-
-    private fun log(message: String) {
-        logger.info { message }
     }
 }

@@ -439,11 +439,12 @@ class DashboardRoutesTest {
         assertEquals(5, memory.maxInjectedMemories)
 
         val reload = client.post("/api/workspaces/default/reload").body<com.heyanle.priestess.bot.workspace.WorkspaceReloadResult>()
-        assertTrue(reload.success)
+        assertFalse(reload.success)
         assertEquals("default", reload.workspaceId)
+        assertTrue(reload.diagnostics.any { it.contains("has no directory root") })
 
         val reloadAll = client.post("/api/workspaces/reload").body<List<com.heyanle.priestess.bot.workspace.WorkspaceReloadResult>>()
-        assertTrue(reloadAll.any { it.workspaceId == "default" && it.success })
+        assertTrue(reloadAll.any { it.workspaceId == "default" && !it.success })
     }
 
     @Test

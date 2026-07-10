@@ -27,6 +27,9 @@ import com.heyanle.priestess.bot.testkit.testConversationCase
 import com.heyanle.priestess.bot.tool.ToolCase
 import com.heyanle.priestess.bot.tool.ToolController
 import com.heyanle.priestess.bot.tool.ToolExecutor
+import com.heyanle.priestess.bot.workspace.ConfigBackedWorkspaceConfigSource
+import com.heyanle.priestess.bot.workspace.WorkspaceCase
+import com.heyanle.priestess.bot.workspace.WorkspaceController
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
@@ -64,6 +67,13 @@ class ConfigReloadIntegrationTest {
             providerCase = ProviderCase(providerController),
             toolCase = ToolCase(toolController),
             observabilityCase = observabilityCase,
+            workspaceCase = WorkspaceCase(
+                WorkspaceController(
+                    source = ConfigBackedWorkspaceConfigSource(configCase),
+                    toolCase = ToolCase(toolController),
+                    nowProvider = { 1_000L },
+                ),
+            ),
         )
         val pipelineCase = PipelineCase(pipelineController)
         val platformController = PlatformController(

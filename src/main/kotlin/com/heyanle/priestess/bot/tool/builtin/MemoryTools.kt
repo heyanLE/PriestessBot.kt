@@ -189,13 +189,14 @@ private val json = Json {
 }
 
 private fun AgentToolContext.toMemoryScopeContext(): MemoryScopeContext {
+    val metadata = this.metadata
+    val platform = this.platform
+    val session = this.session
     return MemoryScopeContext(
-        workspaceId = metadata["workspace_id"]
-            ?: metadata["workspaceId"]
-            ?: MemoryScopeContext.DEFAULT_WORKSPACE_ID,
-        platformId = metadata["platform_id"] ?: metadata["platformId"] ?: platform?.metadata?.name,
-        sessionId = metadata["session_id"] ?: metadata["sessionId"] ?: session?.id,
-        userId = metadata["user_id"] ?: metadata["userId"],
+        workspaceId = metadata["workspaceId"] ?: MemoryScopeContext.DEFAULT_WORKSPACE_ID,
+        platformId = metadata["platformId"] ?: platform?.metadata?.name,
+        sessionId = metadata["sessionId"] ?: session?.id,
+        userId = metadata["userId"],
         agentName = agentName.takeIf { it.isNotBlank() },
     )
 }
@@ -217,23 +218,20 @@ private fun memoryPolicyError(context: AgentToolContext, scope: MemoryScope?): T
 }
 
 private fun memoryPolicyLimit(context: AgentToolContext): Int {
-    return (context.metadata["workspace_memory_max_injected"]
-        ?: context.metadata["workspaceMemoryMaxInjected"])
+    return context.metadata["workspaceMemoryMaxInjected"]
         ?.toIntOrNull()
         ?.coerceIn(1, 20)
         ?: 5
 }
 
 private fun Map<String, String>.memoryEnabled(): Boolean {
-    return (this["workspace_memory_enabled"] ?: this["workspaceMemoryEnabled"])
+    return this["workspaceMemoryEnabled"]
         ?.toBooleanStrictOrNull()
         ?: true
 }
 
 private fun Map<String, String>.memoryAllowedScopes(): Set<String>? {
-    val raw = this["workspace_memory_allowed_scopes"]
-        ?: this["workspaceMemoryAllowedScopes"]
-        ?: return null
+    val raw = this["workspaceMemoryAllowedScopes"] ?: return null
     return raw.split(",")
         .map { it.trim().uppercase() }
         .filter { it.isNotBlank() }

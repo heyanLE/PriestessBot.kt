@@ -13,11 +13,19 @@ class SkillCase(
     fun getAll(): List<Skill> = controller.getAll()
 
     fun getWorkspaceSkillState(snapshot: WorkspaceSnapshot): PipelineSkillState {
-        return PipelineSkillState(getWorkspaceSkillDocuments(snapshot))
+        return PipelineSkillState(getWorkspaceSkillReferences(snapshot))
     }
 
-    fun getWorkspaceSkillDocuments(snapshot: WorkspaceSnapshot): List<SkillPromptDocument> {
-        return getWorkspaceSkillSet(snapshot).documents()
+    fun getWorkspaceSkillReferences(snapshot: WorkspaceSnapshot): List<SkillPromptReference> {
+        return snapshot.skillDescriptors.map { descriptor ->
+            SkillPromptReference(
+                name = descriptor.name,
+                description = descriptor.description,
+                markdownPath = descriptor.skillMarkdownPath,
+                inlineMarkdown = descriptor.inlineMarkdown,
+                settings = descriptor.settings,
+            )
+        }
     }
 
     fun getWorkspaceSkillSet(snapshot: WorkspaceSnapshot): WorkspaceSkillSet {

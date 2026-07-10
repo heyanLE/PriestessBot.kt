@@ -1,7 +1,6 @@
 package com.heyanle.priestess.bot.workspace
 
 import com.heyanle.priestess.bot.config.AgentConfig
-import com.heyanle.priestess.bot.config.ProviderConfig
 import com.heyanle.priestess.bot.config.SubAgentOrchestrationConfig
 import com.heyanle.priestess.bot.tool.FunctionTool
 import com.heyanle.priestess.bot.tool.ToolRiskLevel
@@ -14,6 +13,7 @@ data class WorkspaceConfig(
     val name: String = "Default Workspace",
     val enabled: Boolean = true,
     val isDefault: Boolean = false,
+    val rules: List<String> = emptyList(),
     val agents: List<AgentConfig> = emptyList(),
     val providerName: String = "",
     val skills: List<WorkspaceSkillConfig> = emptyList(),
@@ -76,13 +76,6 @@ data class WorkspaceResolutionConfig(
     val userIds: List<String> = emptyList(),
 )
 
-data class WorkspaceResolutionContext(
-    val platformName: String? = null,
-    val sessionId: String? = null,
-    val userId: String? = null,
-    val metadata: Map<String, String> = emptyMap(),
-)
-
 data class WorkspaceResolution(
     val snapshot: WorkspaceSnapshot,
     val reason: String,
@@ -100,14 +93,15 @@ data class WorkspaceSnapshot(
     val enabled: Boolean,
     val version: Long,
     val loadedAt: Long,
+    val rootDir: String,
+    val rules: List<String> = emptyList(),
     val config: WorkspaceConfig,
     val agentConfigs: List<AgentConfig>,
     val providerName: String,
     val toolNames: List<String>,
-    val skillNames: List<String>,
+    val skillDescriptors: List<WorkspaceSkillDescriptor>,
     val skillSettings: Map<String, Map<String, String>>,
-    val mcpServerIds: List<String>,
-    val mcpServers: List<WorkspaceMcpServerConfig>,
+    val mcpServers: List<WorkspaceMcpServerDeclaration>,
     val mcpToolNames: List<String> = emptyList(),
     val mcpResources: List<WorkspaceMcpResource> = emptyList(),
     val mcpHandles: List<WorkspaceMcpClientHandle> = emptyList(),
@@ -115,6 +109,12 @@ data class WorkspaceSnapshot(
     val memoryPolicy: WorkspaceMemoryPolicyConfig,
     val diagnostics: List<String> = emptyList(),
 ) {
+    val skillNames: List<String>
+        get() = skillDescriptors.map { it.name }
+
+    val mcpServerIds: List<String>
+        get() = mcpServers.map { it.id }
+
     fun closeMcpHandles() {
         mcpHandles.forEach { handle ->
             runCatching { handle.close() }
@@ -126,6 +126,28 @@ data class WorkspaceSnapshot(
         version = version,
     )
 }
+
+data class WorkspaceSkillDescriptor(
+    val name: String,
+    val description: String = "",
+    val enabled: Boolean = true,
+    val directoryPath: String,
+    val skillMarkdownPath: String,
+    val inlineMarkdown: String? = null,
+    val settings: Map<String, String> = emptyMap(),
+)
+
+@Serializable
+data class WorkspaceMcpServerDeclaration(
+    val id: String,
+    val enabled: Boolean = true,
+    val transport: String = "stdio",
+    val command: String = "",
+    val args: List<String> = emptyList(),
+    val url: String = "",
+    val env: Map<String, String> = emptyMap(),
+    val sourcePath: String = "",
+)
 
 data class WorkspaceMcpToolResolution(
     val resources: List<WorkspaceMcpResource> = emptyList(),
@@ -214,8 +236,19 @@ data class WorkspaceReloadResult(
 )
 
 data class WorkspaceConfigSet(
-    val workspaces: List<WorkspaceConfig>,
+    val workspaces: List<WorkspaceConfig> = emptyList(),
+    val defaultWorkspaceDir: String = "",
+    val defaults: WorkspaceRuntimeDefaults = WorkspaceRuntimeDefaults(),
     val diagnostics: List<String> = emptyList(),
+)
+
+data class WorkspaceRuntimeDefaults(
+    val baseConfig: WorkspaceConfig = WorkspaceConfig(
+        id = WorkspaceConfig.DEFAULT_WORKSPACE_ID,
+        name = "Default Workspace",
+        enabled = true,
+        isDefault = true,
+    ),
 )
 
 data class WorkspaceValidationResult(

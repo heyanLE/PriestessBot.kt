@@ -24,15 +24,26 @@ import com.heyanle.priestess.bot.tool.builtin.SystemInfoTool
 import com.heyanle.priestess.bot.workspace.WorkspaceConfig
 import com.heyanle.priestess.bot.workspace.WorkspaceConfigSet
 import com.heyanle.priestess.bot.workspace.WorkspaceConfigSource
-import com.heyanle.priestess.bot.workspace.WorkspaceCase
 import com.heyanle.priestess.bot.workspace.WorkspaceController
 import com.heyanle.priestess.bot.workspace.WorkspaceMcpServerConfig
 import com.heyanle.priestess.bot.workspace.WorkspaceMemoryPolicyConfig
 import com.heyanle.priestess.bot.workspace.WorkspacePersonaConfig
+import com.heyanle.priestess.bot.workspace.WorkspaceResolutionContext
 import com.heyanle.priestess.bot.workspace.WorkspaceResolutionConfig
 import com.heyanle.priestess.bot.workspace.WorkspaceSkillConfig
+import com.heyanle.priestess.bot.workspace.WorkspaceRuntimeDefaults
+import java.nio.file.Files
+import java.nio.file.Path
+import java.util.Comparator
+import kotlin.io.path.absolutePathString
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonArray
+import kotlinx.serialization.json.putJsonObject
 import kotlin.test.Test
 import kotlin.test.assertContains
 import kotlin.test.assertEquals
@@ -48,7 +59,7 @@ class PreProcessStageTest {
         conversationCase.storeMessage(existing.id, MessageRole.ASSISTANT, "previous assistant")
         val ctx = testPipelineContext(text = "current user", sessionId = "session-1")
 
-        val flow = stage(conversationCase).process(ctx)
+        val flow = processStage(ctx, conversationCase)
 
         val agentContext = assertNotNull(ctx.agentContext)
         assertEquals("test-agent", agentContext.agent.name)
@@ -67,7 +78,7 @@ class PreProcessStageTest {
         val conversationCase = testConversationCase("preprocess-persist")
         val ctx = testPipelineContext(text = "current user", sessionId = "session-1")
 
-        val flow = stage(conversationCase).process(ctx)
+        val flow = processStage(ctx, conversationCase)
         ctx.agentResponse = AgentResponse.Final("assistant final")
         flow.collect()
 
@@ -124,7 +135,7 @@ class PreProcessStageTest {
         )
         val ctx = testPipelineContext(text = "current user", sessionId = "ops-session")
 
-        stage(conversationCase, workspaceController = workspaceController).process(ctx)
+        processStage(ctx, conversationCase, workspaceController = workspaceController)
 
         val agentContext = assertNotNull(ctx.agentContext)
         assertEquals("ops", ctx.workspaceId)
@@ -202,11 +213,12 @@ class PreProcessStageTest {
             senderId = "user-1",
         )
 
-        stage(
+        processStage(
+            ctx,
             conversationCase,
             workspaceController = workspaceController,
             personaMemoryInjector = injector,
-        ).process(ctx)
+        )
 
         val agentContext = assertNotNull(ctx.agentContext)
         assertContains(agentContext.agent.instructions, "Test instructions")
@@ -235,7 +247,7 @@ class PreProcessStageTest {
         )
         val workspaceController = workspaceController(source)
         val first = testPipelineContext(text = "first", sessionId = "session-1")
-        stage(conversationCase, workspaceController = workspaceController).process(first)
+        processStage(first, conversationCase, workspaceController = workspaceController)
         val firstVersion = assertNotNull(first.workspaceSnapshotVersion)
 
         source.workspaces = listOf(
@@ -248,7 +260,7 @@ class PreProcessStageTest {
         )
         val reload = workspaceController.reload("default")
         val second = testPipelineContext(text = "second", sessionId = "session-2")
-        stage(conversationCase, workspaceController = workspaceController).process(second)
+        processStage(second, conversationCase, workspaceController = workspaceController)
 
         assertTrue(reload.success)
         assertTrue(assertNotNull(second.workspaceSnapshotVersion) > firstVersion)
@@ -308,11 +320,12 @@ class PreProcessStageTest {
             sessionId = "memory-policy-session",
             senderId = "memory-policy-user",
         )
-        stage(
+        processStage(
+            first,
             conversationCase,
             workspaceController = workspaceController,
             personaMemoryInjector = injector,
-        ).process(first)
+        )
 
         val firstAgent = assertNotNull(first.agentContext)
         assertContains(firstAgent.agent.instructions, persona.name)
@@ -345,11 +358,12 @@ class PreProcessStageTest {
             sessionId = "memory-policy-session",
             senderId = "memory-policy-user",
         )
-        stage(
+        processStage(
+            second,
             conversationCase,
             workspaceController = workspaceController,
             personaMemoryInjector = injector,
-        ).process(second)
+        )
 
         val secondAgent = assertNotNull(second.agentContext)
         assertContains(secondAgent.agent.instructions, persona.name)
@@ -393,11 +407,12 @@ class PreProcessStageTest {
         )
         val workspaceController = workspaceController(source)
         val first = testPipelineContext(text = "persona", sessionId = "persona-session")
-        stage(
+        processStage(
+            first,
             conversationCase,
             workspaceController = workspaceController,
             personaMemoryInjector = injector,
-        ).process(first)
+        )
 
         val firstAgent = assertNotNull(first.agentContext)
         assertContains(firstAgent.agent.instructions, "Persona A")
@@ -416,11 +431,12 @@ class PreProcessStageTest {
         assertTrue(workspaceController.reload("default").success)
 
         val second = testPipelineContext(text = "persona", sessionId = "persona-session")
-        stage(
+        processStage(
+            second,
             conversationCase,
             workspaceController = workspaceController,
             personaMemoryInjector = injector,
-        ).process(second)
+        )
 
         val secondAgent = assertNotNull(second.agentContext)
         assertContains(secondAgent.agent.instructions, "Persona B")
@@ -429,7 +445,6 @@ class PreProcessStageTest {
 
     private fun stage(
         conversationCase: com.heyanle.priestess.bot.conversation.ConversationCase,
-        workspaceController: WorkspaceController? = null,
         personaMemoryInjector: PersonaMemoryInjector? = null,
     ): PreProcessStage {
         return PreProcessStage(
@@ -442,8 +457,35 @@ class PreProcessStageTest {
             pipelineConfig = PipelineConfig(maxHistoryMessages = 5),
             conversationCase = conversationCase,
             agentCase = AgentCase(),
-            workspaceCase = workspaceController?.let { WorkspaceCase(it) },
             personaMemoryInjector = personaMemoryInjector,
+        )
+    }
+
+    private suspend fun processStage(
+        ctx: com.heyanle.priestess.bot.pipeline.PipelineContext,
+        conversationCase: com.heyanle.priestess.bot.conversation.ConversationCase,
+        workspaceController: WorkspaceController? = null,
+        personaMemoryInjector: PersonaMemoryInjector? = null,
+    ) = stage(
+        conversationCase = conversationCase,
+        personaMemoryInjector = personaMemoryInjector,
+    ).also {
+        pinWorkspace(ctx, workspaceController ?: workspaceController(defaultWorkspaceConfigs()))
+    }.process(ctx)
+
+    private fun pinWorkspace(
+        ctx: com.heyanle.priestess.bot.pipeline.PipelineContext,
+        workspaceController: WorkspaceController,
+    ) {
+        ctx.pinWorkspace(
+            workspaceController.resolve(
+                WorkspaceResolutionContext(
+                    platformName = ctx.event.platform.metadata.name,
+                    sessionId = ctx.event.session.id,
+                    userId = ctx.senderId,
+                    metadata = ctx.event.session.metadata,
+                ),
+            ),
         )
     }
 
@@ -458,17 +500,142 @@ class PreProcessStageTest {
         val skills = SkillController().apply {
             register(DefaultSkill())
         }
-        return WorkspaceController(
+        val controller = WorkspaceController(
             source = source,
             toolCase = ToolCase(tools),
             skillCase = SkillCase(skills),
             nowProvider = { 1_000L },
         )
+        if (source is MutableWorkspaceSource) {
+            source.preparedWorkspaceIds()
+                .filter { it != WorkspaceConfig.DEFAULT_WORKSPACE_ID }
+                .forEach { workspaceId ->
+                    controller.prepare(source.directoryFor(workspaceId), "seed workspace")
+                }
+        }
+        return controller
+    }
+
+    private fun defaultWorkspaceConfigs(): List<WorkspaceConfig> {
+        return listOf(
+            WorkspaceConfig(
+                id = "default",
+                name = "Default",
+                isDefault = true,
+                agents = listOf(
+                    AgentConfig(
+                        name = "test-agent",
+                        instructions = "Test instructions",
+                        model = "fake-model",
+                    ),
+                ),
+            ),
+        )
     }
 
     private class MutableWorkspaceSource(
-        var workspaces: List<WorkspaceConfig>,
+        initialWorkspaces: List<WorkspaceConfig>,
     ) : WorkspaceConfigSource {
-        override fun load(): WorkspaceConfigSet = WorkspaceConfigSet(workspaces)
+        private val json = Json { prettyPrint = true; encodeDefaults = true }
+        private val workspaceDirs = linkedMapOf<String, Path>()
+
+        var workspaces: List<WorkspaceConfig> = initialWorkspaces
+            set(value) {
+                field = value
+                sync(value)
+            }
+
+        init {
+            sync(workspaces)
+        }
+
+        override fun load(): WorkspaceConfigSet = WorkspaceConfigSet(
+            workspaces = workspaces,
+            defaultWorkspaceDir = defaultWorkspaceConfig()
+                ?.let { workspaceDirs[it.id] }
+                ?.toAbsolutePath()
+                ?.normalize()
+                ?.absolutePathString()
+                .orEmpty(),
+            defaults = WorkspaceRuntimeDefaults(defaultWorkspaceConfig() ?: WorkspaceConfig(isDefault = true)),
+        )
+
+        fun preparedWorkspaceIds(): List<String> = workspaces.map { it.id }.distinct()
+
+        fun directoryFor(id: String): String {
+            return workspaceDirs.getValue(id).toAbsolutePath().normalize().absolutePathString()
+        }
+
+        private fun defaultWorkspaceConfig(): WorkspaceConfig? {
+            return workspaces.firstOrNull { it.isDefault } ?: workspaces.firstOrNull()
+        }
+
+        private fun sync(configs: List<WorkspaceConfig>) {
+            configs.distinctBy { it.id }.forEach { config ->
+                val root = workspaceDirs.getOrPut(config.id) {
+                    Files.createTempDirectory("workspace-${config.id}")
+                }
+                writeWorkspace(root, config)
+            }
+        }
+
+        private fun writeWorkspace(root: Path, config: WorkspaceConfig) {
+            deleteChildren(root)
+            Files.createDirectories(root.resolve("skills"))
+            Files.writeString(root.resolve("config.yaml"), json.encodeToString(WorkspaceConfig.serializer(), config))
+            Files.writeString(
+                root.resolve("mcpserver.json"),
+                buildMcpJson(config.mcpServers),
+            )
+            config.skills.forEach { skill ->
+                val skillDir = root.resolve("skills").resolve(skill.name)
+                Files.createDirectories(skillDir)
+                Files.writeString(
+                    skillDir.resolve("SKILL.md"),
+                    """
+                    ---
+                    name: ${skill.name}
+                    description: ${skill.name} description
+                    ---
+                    # Skill: ${skill.name}
+                    """.trimIndent(),
+                )
+            }
+        }
+
+        private fun buildMcpJson(servers: List<WorkspaceMcpServerConfig>): String {
+            return kotlinx.serialization.json.buildJsonObject {
+                putJsonObject("mcpServers") {
+                    servers.forEach { server ->
+                        putJsonObject(server.id) {
+                            put("enabled", server.enabled)
+                            put("transport", server.transport)
+                            put("command", server.command)
+                            put("url", server.url)
+                            putJsonArray("args") {
+                                server.args.forEach { add(JsonPrimitive(it)) }
+                            }
+                            putJsonObject("env") {
+                                server.env.forEach { (key, value) ->
+                                    put(key, value)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+                .toString()
+        }
+
+        private fun deleteChildren(root: Path) {
+            if (!Files.exists(root)) return
+            Files.list(root).use { children ->
+                children.forEach { child ->
+                    Files.walk(child)
+                        .sorted(Comparator.reverseOrder())
+                        .forEach(Files::deleteIfExists)
+                }
+            }
+        }
     }
 }

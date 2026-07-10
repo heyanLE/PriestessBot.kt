@@ -120,9 +120,7 @@ class ToolExecutor(
     }
 
     private fun workspaceToolNames(context: AgentToolContext): Set<String>? {
-        val raw = context.metadata["workspace_tool_names"]
-            ?: context.metadata["workspaceToolNames"]
-            ?: return null
+        val raw = context.metadata["workspaceToolNames"] ?: return null
         return raw.split(",")
             .map { it.trim() }
             .filter { it.isNotBlank() }

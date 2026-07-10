@@ -95,7 +95,7 @@ class SubAgentOrchestrator(
             platform = null,
             session = null,
             messages = mutableListOf(ConversationMessage.user(message)),
-            metadata = mapOf("source" to "sub-agent-orchestrator"),
+            metadata = emptyMap(),
         )
         val hooks = object : AgentHooks {
             override suspend fun onAgentBegin(context: AgentContext) {

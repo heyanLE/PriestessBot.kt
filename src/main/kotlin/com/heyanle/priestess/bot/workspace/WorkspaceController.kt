@@ -1,24 +1,28 @@
 package com.heyanle.priestess.bot.workspace
 
-import com.heyanle.priestess.bot.config.AgentConfig
 import com.heyanle.priestess.bot.core.controller.BaseController
 import com.heyanle.priestess.bot.skill.SkillCase
 import com.heyanle.priestess.bot.tool.ToolCase
 import com.heyanle.priestess.bot.tool.ToolListingFilters
+import java.nio.file.Path
 import java.util.concurrent.atomic.AtomicLong
+import kotlin.io.path.exists
+import kotlin.io.path.isDirectory
+import kotlin.io.path.name
 
 /**
- * 工作区控制器，负责加载、校验、发布和回收工作区运行快照。
+ * 工作区控制器，负责根据目录实时构建、发布和回收工作区运行快照。
  */
 class WorkspaceController(
     private val source: WorkspaceConfigSource,
     private val toolCase: ToolCase,
-    private val skillCase: SkillCase,
+    private val skillCase: SkillCase? = null,
     private val mcpToolResolver: WorkspaceMcpToolResolver = WorkspaceMcpToolResolver.Noop,
     private val nowProvider: () -> Long = System::currentTimeMillis,
 ) : BaseController("WorkspaceController") {
     private val versionCounter = AtomicLong(0)
     private val lock = Any()
+    private val loader = WorkspaceDirectoryLoader()
     private val snapshots = linkedMapOf<String, WorkspaceSnapshot>()
     private val statuses = linkedMapOf<String, WorkspaceStatus>()
     private val lastReloads = linkedMapOf<String, WorkspaceReloadResult>()
@@ -27,7 +31,7 @@ class WorkspaceController(
     private val closedSnapshotKeys = linkedSetOf<WorkspaceSnapshotKey>()
 
     init {
-        reloadAll()
+        bootstrapDefaultSnapshot()
     }
 
     fun list(): List<WorkspaceStatus> = synchronized(lock) {
@@ -38,59 +42,78 @@ class WorkspaceController(
         snapshots[id]
     }
 
-    fun resolve(context: WorkspaceResolutionContext = WorkspaceResolutionContext()): WorkspaceResolution {
-        synchronized(lock) {
-            context.metadata["workspace_id"]?.let { requested ->
-                snapshots[requested]?.takeIf { it.enabled }?.let {
-                    return WorkspaceResolution(it, "metadata workspace_id", WorkspaceSnapshotLease(this, it))
-                }
-            }
-            context.metadata["workspaceId"]?.let { requested ->
-                snapshots[requested]?.takeIf { it.enabled }?.let {
-                    return WorkspaceResolution(it, "metadata workspaceId", WorkspaceSnapshotLease(this, it))
-                }
-            }
-            snapshots.values.firstOrNull { snapshot ->
-                snapshot.enabled && snapshot.config.resolution.platformNames.any { it == context.platformName }
-            }?.let { return WorkspaceResolution(it, "platform rule", WorkspaceSnapshotLease(this, it)) }
-            snapshots.values.firstOrNull { snapshot ->
-                snapshot.enabled && snapshot.config.resolution.sessionIds.any { it == context.sessionId }
-            }?.let { return WorkspaceResolution(it, "session rule", WorkspaceSnapshotLease(this, it)) }
-            snapshots.values.firstOrNull { snapshot ->
-                snapshot.enabled && snapshot.config.resolution.userIds.any { it == context.userId }
-            }?.let { return WorkspaceResolution(it, "user rule", WorkspaceSnapshotLease(this, it)) }
-            snapshots[WorkspaceConfig.DEFAULT_WORKSPACE_ID]?.takeIf { it.enabled }?.let {
-                return WorkspaceResolution(it, "default workspace", WorkspaceSnapshotLease(this, it))
-            }
-            snapshots.values.firstOrNull { it.enabled }?.let {
-                return WorkspaceResolution(it, "first enabled workspace", WorkspaceSnapshotLease(this, it))
-            }
-        }
-        error("No enabled workspace snapshot available")
+    fun prepare(workspaceDir: String, reason: String): WorkspaceResolution {
+        val settings = source.load()
+        val candidate = buildSnapshotForDirectory(workspaceDir, settings, settings.diagnostics)
+        publishPreparedSnapshot(candidate)
+        return WorkspaceResolution(candidate, reason, WorkspaceSnapshotLease(this, candidate))
     }
 
     fun reload(id: String): WorkspaceReloadResult {
-        val configSet = source.load()
-        val validation = validate(configSet.workspaces)
-        val target = configSet.workspaces.find { it.id == id }
-        if (target == null) {
-            return failedReload(id, listOf("Workspace '$id' not found in source") + validation.diagnostics)
+        val current = synchronized(lock) { snapshots[id] }
+            ?: return failedReload(id, listOf("Workspace '$id' was not prepared yet"))
+        return try {
+            val settings = source.load()
+            if (current.rootDir.isBlank()) {
+                return failedReload(id, listOf("Workspace '$id' has no directory root"))
+            }
+            val candidate = buildSnapshotForDirectory(current.rootDir, settings, settings.diagnostics)
+            publishReloadCandidate(current, candidate)
+        } catch (cause: WorkspaceSnapshotBuildException) {
+            failedReload(id, listOf(cause.message ?: "Workspace reload failed"))
         }
-        if (!validation.valid) {
-            return failedReload(id, validation.diagnostics)
-        }
-        return publishCandidate(target, configSet.diagnostics)
     }
 
     fun reloadAll(): List<WorkspaceReloadResult> {
-        val configSet = source.load()
-        val validation = validate(configSet.workspaces)
-        if (!validation.valid) {
-            return configSet.workspaces.map { config ->
-                failedReload(config.id, validation.diagnostics + configSet.diagnostics)
+        val currentSnapshots = synchronized(lock) { snapshots.values.toList() }
+        if (currentSnapshots.isEmpty()) {
+            val snapshot = bootstrapDefaultSnapshot()
+            return listOf(
+                WorkspaceReloadResult(
+                    workspaceId = snapshot.id,
+                    success = true,
+                    status = "SUCCESS",
+                    snapshotVersion = snapshot.version,
+                    timestamp = nowProvider(),
+                    diagnostics = snapshot.diagnostics,
+                ),
+            )
+        }
+        return currentSnapshots.map { reload(it.id) }
+    }
+
+    fun validate(workspaces: List<WorkspaceConfig>): WorkspaceValidationResult {
+        val diagnostics = mutableListOf<String>()
+        if (workspaces.isEmpty()) {
+            diagnostics += "At least one workspace is required"
+        }
+        val duplicateIds = workspaces.groupingBy { it.id }.eachCount().filterValues { it > 1 }.keys
+        duplicateIds.forEach { diagnostics += "Duplicate workspace id '$it'" }
+        workspaces.forEach { config ->
+            if (config.id.isBlank()) diagnostics += "Workspace id must not be blank"
+            if (config.name.isBlank()) diagnostics += "Workspace '${config.id}' name must not be blank"
+            val duplicateSkillNames = config.skills.groupingBy { it.name }.eachCount().filterValues { it > 1 }.keys
+            duplicateSkillNames.forEach { diagnostics += "Workspace '${config.id}' has duplicate skill '$it'" }
+            val knownTools = toolCase.getAll().map { it.schema.name }.toSet()
+            val unknownEnabledTools = config.tools.enabledTools.filter { it !in knownTools }
+            unknownEnabledTools.forEach { diagnostics += "Workspace '${config.id}' references unknown enabled tool '$it'" }
+            val unknownDisabledTools = config.tools.disabledTools.filter { it !in knownTools }
+            unknownDisabledTools.forEach { diagnostics += "Workspace '${config.id}' references unknown disabled tool '$it'" }
+            val duplicateMcpIds = config.mcpServers.groupingBy { it.id }.eachCount().filterValues { it > 1 }.keys
+            duplicateMcpIds.forEach { diagnostics += "Workspace '${config.id}' has duplicate MCP server '$it'" }
+            config.mcpServers.filter { it.enabled }.forEach { server ->
+                if (server.id.isBlank()) diagnostics += "Workspace '${config.id}' has blank MCP server id"
+                if (server.transport == "stdio" && server.command.isBlank()) {
+                    diagnostics += "Workspace '${config.id}' MCP server '${server.id}' requires command"
+                }
+            }
+            skillCase?.let { skills ->
+                val knownSkills = skills.getAll().map { it.name }.toSet()
+                val unknownSkills = config.skills.filter { it.enabled }.map { it.name } - knownSkills
+                unknownSkills.forEach { diagnostics += "Workspace '${config.id}' references unknown skill '$it'" }
             }
         }
-        return configSet.workspaces.map { publishCandidate(it, configSet.diagnostics + validation.diagnostics) }
+        return if (diagnostics.isEmpty()) WorkspaceValidationResult.ok() else WorkspaceValidationResult.failed(diagnostics)
     }
 
     fun close() {
@@ -111,50 +134,142 @@ class WorkspaceController(
         super.stop()
     }
 
-    fun validate(workspaces: List<WorkspaceConfig>): WorkspaceValidationResult {
-        val diagnostics = mutableListOf<String>()
-        if (workspaces.isEmpty()) {
-            diagnostics += "At least one workspace is required"
+    internal fun retainSnapshot(snapshot: WorkspaceSnapshot) {
+        synchronized(lock) {
+            val key = snapshot.key()
+            snapshotRefs[key] = (snapshotRefs[key] ?: 0) + 1
         }
-        val duplicateIds = workspaces.groupingBy { it.id }.eachCount().filterValues { it > 1 }.keys
-        duplicateIds.forEach { diagnostics += "Duplicate workspace id '$it'" }
-        workspaces.forEach { config ->
-            if (config.id.isBlank()) diagnostics += "Workspace id must not be blank"
-            if (config.name.isBlank()) diagnostics += "Workspace '${config.id}' name must not be blank"
-            val duplicateSkillNames = config.skills.groupingBy { it.name }.eachCount().filterValues { it > 1 }.keys
-            duplicateSkillNames.forEach { diagnostics += "Workspace '${config.id}' has duplicate skill '$it'" }
-            val unknownSkills = config.skills.filter { it.enabled }.map { it.name } - skillCase.getAll().map { it.name }.toSet()
-            unknownSkills.forEach { diagnostics += "Workspace '${config.id}' references unknown skill '$it'" }
-            val knownTools = toolCase.getAll().map { it.schema.name }.toSet()
-            val unknownEnabledTools = config.tools.enabledTools.filter { it !in knownTools }
-            unknownEnabledTools.forEach { diagnostics += "Workspace '${config.id}' references unknown enabled tool '$it'" }
-            val unknownDisabledTools = config.tools.disabledTools.filter { it !in knownTools }
-            unknownDisabledTools.forEach { diagnostics += "Workspace '${config.id}' references unknown disabled tool '$it'" }
-            val duplicateMcpIds = config.mcpServers.groupingBy { it.id }.eachCount().filterValues { it > 1 }.keys
-            duplicateMcpIds.forEach { diagnostics += "Workspace '${config.id}' has duplicate MCP server '$it'" }
-            config.mcpServers.filter { it.enabled }.forEach { server ->
-                if (server.id.isBlank()) diagnostics += "Workspace '${config.id}' has blank MCP server id"
-                if (server.transport == "stdio" && server.command.isBlank()) {
-                    diagnostics += "Workspace '${config.id}' MCP server '${server.id}' requires command"
-                }
-            }
-        }
-        return if (diagnostics.isEmpty()) WorkspaceValidationResult.ok() else WorkspaceValidationResult.failed(diagnostics)
     }
 
-    private fun publishCandidate(config: WorkspaceConfig, sourceDiagnostics: List<String>): WorkspaceReloadResult {
-        val oldSnapshot = synchronized(lock) { snapshots[config.id] }
-        val candidate = try {
-            buildSnapshot(config, sourceDiagnostics)
-        } catch (cause: WorkspaceSnapshotBuildException) {
-            return failedReload(
-                config.id,
-                sourceDiagnostics + listOf(cause.message ?: "Workspace snapshot build failed"),
+    internal fun releaseSnapshot(snapshot: WorkspaceSnapshot) {
+        synchronized(lock) {
+            releaseSnapshotLocked(snapshot)
+        }
+    }
+
+    private fun bootstrapDefaultSnapshot(): WorkspaceSnapshot {
+        val settings = source.load()
+        val snapshot = if (settings.defaultWorkspaceDir.isNotBlank()) {
+            buildSnapshotForDirectory(settings.defaultWorkspaceDir, settings, settings.diagnostics)
+        } else {
+            buildSyntheticDefaultSnapshot(settings, settings.diagnostics + "No default workspace directory configured")
+        }
+        publishPreparedSnapshot(snapshot)
+        return snapshot
+    }
+
+    private fun buildSnapshotForDirectory(
+        workspaceDir: String,
+        settings: WorkspaceConfigSet,
+        sourceDiagnostics: List<String>,
+    ): WorkspaceSnapshot {
+        val normalizedRoot = normalizeDirectory(workspaceDir)
+        if (normalizedRoot.isBlank()) {
+            return buildSyntheticDefaultSnapshot(
+                settings,
+                sourceDiagnostics + "Workspace directory was blank; using synthetic default snapshot",
             )
         }
-        val plan = plan(oldSnapshot, candidate)
+        val rootPath = Path.of(normalizedRoot)
+        if (!rootPath.exists() || !rootPath.isDirectory()) {
+            return buildSyntheticDefaultSnapshot(
+                settings,
+                sourceDiagnostics + "Workspace directory '$normalizedRoot' was not found or is not a directory",
+                normalizedRoot,
+            )
+        }
+
+        val loadResult = loader.load(rootPath, settings.defaults.baseConfig)
+        val resolvedId = resolveWorkspaceId(
+            normalizedRoot = normalizedRoot,
+            explicitId = loadResult.explicitId,
+            configuredId = loadResult.config.id,
+            defaultWorkspaceDir = settings.defaultWorkspaceDir,
+        )
+        val resolvedName = resolveWorkspaceName(
+            normalizedRoot = normalizedRoot,
+            explicitName = loadResult.explicitName,
+            configuredName = loadResult.config.name,
+        )
+        val resolvedConfig = loadResult.config.copy(
+            id = resolvedId,
+            name = resolvedName,
+            isDefault = resolvedId == WorkspaceConfig.DEFAULT_WORKSPACE_ID,
+        )
+        val visibleSkills = loadResult.skillDescriptors
+        val enabledToolNames = scopedToolNames(resolvedConfig, hasVisibleSkills = visibleSkills.isNotEmpty())
+        val mcpDeclarations = loadResult.mcpServers
+            .filter { it.enabled }
+            .map { it.copy(env = emptyMap()) }
+        val version = versionCounter.incrementAndGet()
+        val loadedAt = nowProvider()
+
+        return WorkspaceSnapshot(
+            id = resolvedId,
+            name = resolvedName,
+            enabled = resolvedConfig.enabled,
+            version = version,
+            loadedAt = loadedAt,
+            rootDir = normalizedRoot,
+            rules = resolvedConfig.rules,
+            config = resolvedConfig,
+            agentConfigs = resolvedConfig.agents.ifEmpty { settings.defaults.baseConfig.agents },
+            providerName = resolvedConfig.providerName.ifBlank {
+                resolvedConfig.agents.firstOrNull()?.providerName ?: settings.defaults.baseConfig.providerName
+            },
+            toolNames = enabledToolNames,
+            skillDescriptors = visibleSkills,
+            skillSettings = visibleSkills.associate { it.name to it.settings },
+            mcpServers = mcpDeclarations,
+            personaIds = resolvedConfig.personas.filter { it.enabled }.map { it.id },
+            memoryPolicy = resolvedConfig.memory,
+            diagnostics = (sourceDiagnostics + loadResult.diagnostics).distinct(),
+        )
+    }
+
+    private fun buildSyntheticDefaultSnapshot(
+        settings: WorkspaceConfigSet,
+        diagnostics: List<String>,
+        rootDir: String = settings.defaultWorkspaceDir,
+    ): WorkspaceSnapshot {
+        val base = settings.defaults.baseConfig
+        val version = versionCounter.incrementAndGet()
+        return WorkspaceSnapshot(
+            id = WorkspaceConfig.DEFAULT_WORKSPACE_ID,
+            name = base.name,
+            enabled = base.enabled,
+            version = version,
+            loadedAt = nowProvider(),
+            rootDir = normalizeDirectory(rootDir),
+            rules = base.rules,
+            config = base,
+            agentConfigs = base.agents,
+            providerName = base.providerName.ifBlank { base.agents.firstOrNull()?.providerName.orEmpty() },
+            toolNames = scopedToolNames(base, hasVisibleSkills = false),
+            skillDescriptors = emptyList(),
+            skillSettings = emptyMap(),
+            mcpServers = emptyList(),
+            personaIds = base.personas.filter { it.enabled }.map { it.id },
+            memoryPolicy = base.memory,
+            diagnostics = diagnostics.distinct(),
+        )
+    }
+
+    private fun publishPreparedSnapshot(candidate: WorkspaceSnapshot) {
+        synchronized(lock) {
+            val previous = snapshots.put(candidate.id, candidate)
+            statuses[candidate.id] = candidate.toStatus(lastReloads[candidate.id])
+            previous?.let { retireSnapshotLocked(it) }
+        }
+    }
+
+    private fun publishReloadCandidate(
+        current: WorkspaceSnapshot,
+        candidate: WorkspaceSnapshot,
+    ): WorkspaceReloadResult {
+        val plan = plan(current, candidate)
         val result = WorkspaceReloadResult(
-            workspaceId = config.id,
+            workspaceId = candidate.id,
             success = true,
             status = "SUCCESS",
             snapshotVersion = candidate.version,
@@ -163,75 +278,12 @@ class WorkspaceController(
             diagnostics = candidate.diagnostics,
         )
         synchronized(lock) {
-            val oldSnapshot = snapshots.put(config.id, candidate)
-            lastReloads[config.id] = result
-            statuses[config.id] = candidate.toStatus(result)
-            oldSnapshot?.let { retireSnapshotLocked(it) }
+            val previous = snapshots.put(candidate.id, candidate)
+            lastReloads[candidate.id] = result
+            statuses[candidate.id] = candidate.toStatus(result)
+            previous?.let { retireSnapshotLocked(it) }
         }
         return result
-    }
-
-    private fun buildSnapshot(config: WorkspaceConfig, sourceDiagnostics: List<String>): WorkspaceSnapshot {
-        val enabledSkills = scopedSkillNames(config)
-        val enabledToolNames = scopedToolNames(config, hasVisibleSkills = enabledSkills.isNotEmpty())
-        val skillSettings = scopedSkillSettings(config, enabledSkills)
-        val enabledMcpServers = config.mcpServers
-            .filter { it.enabled }
-            .map { it.copy(env = emptyMap()) }
-        val mcpResolution = resolveMcpTools(config.id, enabledMcpServers)
-        val mcpHandles = (mcpResolution.handles + mcpResolution.resources.map { it.handle }).distinct()
-        val version = versionCounter.incrementAndGet()
-        val loadedAt = nowProvider()
-        val agents = config.agents.ifEmpty { listOf(AgentConfig()) }
-        val providerName = config.providerName.ifBlank { agents.first().providerName }
-        val diagnostics = sourceDiagnostics + mcpResolution.diagnostics + buildList {
-            if (!config.enabled) add("Workspace '${config.id}' is disabled")
-        }
-        val mcpToolNames = mcpResolution.toolNames.sorted()
-        return WorkspaceSnapshot(
-            id = config.id,
-            name = config.name,
-            enabled = config.enabled,
-            version = version,
-            loadedAt = loadedAt,
-            config = config,
-            agentConfigs = agents,
-            providerName = providerName,
-            toolNames = (enabledToolNames + mcpToolNames).distinct().sorted(),
-            skillNames = enabledSkills,
-            skillSettings = skillSettings,
-            mcpServerIds = enabledMcpServers.map { it.id },
-            mcpServers = enabledMcpServers,
-            mcpToolNames = mcpToolNames,
-            mcpResources = mcpResolution.resources,
-            mcpHandles = mcpHandles,
-            personaIds = config.personas.filter { it.enabled }.map { it.id },
-            memoryPolicy = config.memory,
-            diagnostics = diagnostics,
-        )
-    }
-
-    private fun resolveMcpTools(
-        workspaceId: String,
-        servers: List<WorkspaceMcpServerConfig>,
-    ): WorkspaceMcpToolResolution {
-        if (servers.isEmpty()) return WorkspaceMcpToolResolution()
-        return try {
-            mcpToolResolver.resolve(workspaceId, servers)
-        } catch (cause: WorkspaceMcpResolutionException) {
-            cause.handles.forEach { handle ->
-                runCatching { handle.close() }
-            }
-            throw WorkspaceSnapshotBuildException(
-                "Workspace '$workspaceId' MCP initialization failed: ${cause.message ?: cause::class.simpleName}",
-                cause,
-            )
-        } catch (cause: Exception) {
-            throw WorkspaceSnapshotBuildException(
-                "Workspace '$workspaceId' MCP initialization failed: ${cause.message ?: cause::class.simpleName}",
-                cause,
-            )
-        }
     }
 
     private fun scopedToolNames(config: WorkspaceConfig, hasVisibleSkills: Boolean): List<String> {
@@ -251,30 +303,14 @@ class WorkspaceController(
             .toList()
     }
 
-    private fun scopedSkillNames(config: WorkspaceConfig): List<String> {
-        val enabled = config.skills.filter { it.enabled }.map { it.name }.toSet()
-        return skillCase.getAll()
-            .asSequence()
-            .filter { enabled.isEmpty() || it.name in enabled }
-            .map { it.name }
-            .sorted()
-            .toList()
-    }
-
-    private fun scopedSkillSettings(config: WorkspaceConfig, enabledSkillNames: List<String>): Map<String, Map<String, String>> {
-        val enabled = enabledSkillNames.toSet()
-        return config.skills
-            .asSequence()
-            .filter { it.enabled && it.name in enabled }
-            .associate { it.name to it.settings }
-    }
-
     private fun plan(old: WorkspaceSnapshot?, candidate: WorkspaceSnapshot): WorkspaceReloadPlan {
         val oldResources = old?.resourceKeys().orEmpty()
         val nextResources = candidate.resourceKeys()
         val modified = buildList {
             if (old != null && old.providerName != candidate.providerName) add("provider")
             if (old != null && old.memoryPolicy != candidate.memoryPolicy) add("memory_policy")
+            if (old != null && old.rootDir != candidate.rootDir) add("root_dir")
+            if (old != null && old.rules != candidate.rules) add("rules")
         }
         return WorkspaceReloadPlan(
             workspaceId = candidate.id,
@@ -301,19 +337,6 @@ class WorkspaceController(
             snapshots[id]?.let { statuses[id] = it.toStatus(result) }
         }
         return result
-    }
-
-    internal fun retainSnapshot(snapshot: WorkspaceSnapshot) {
-        synchronized(lock) {
-            val key = snapshot.key()
-            snapshotRefs[key] = (snapshotRefs[key] ?: 0) + 1
-        }
-    }
-
-    internal fun releaseSnapshot(snapshot: WorkspaceSnapshot) {
-        synchronized(lock) {
-            releaseSnapshotLocked(snapshot)
-        }
     }
 
     private fun retireSnapshotLocked(snapshot: WorkspaceSnapshot) {
@@ -349,6 +372,7 @@ class WorkspaceController(
             mcpToolNames.forEach { add("mcp_tool:$it") }
             personaIds.forEach { add("persona:$it") }
             agentConfigs.forEach { add("agent:${it.name}") }
+            rules.forEach { add("rule:$it") }
         }
     }
 
@@ -362,6 +386,47 @@ class WorkspaceController(
             lastReload = lastReload,
             diagnostics = diagnostics,
         )
+    }
+
+    private fun normalizeDirectory(path: String): String {
+        return path.trim().takeIf { it.isNotBlank() }
+            ?.let { Path.of(it).toAbsolutePath().normalize().toString() }
+            .orEmpty()
+    }
+
+    private fun resolveWorkspaceId(
+        normalizedRoot: String,
+        explicitId: Boolean,
+        configuredId: String,
+        defaultWorkspaceDir: String,
+    ): String {
+        val normalizedDefault = normalizeDirectory(defaultWorkspaceDir)
+        if (normalizedDefault.isNotBlank() && normalizedRoot == normalizedDefault) {
+            return if (explicitId && configuredId.isNotBlank()) configuredId else WorkspaceConfig.DEFAULT_WORKSPACE_ID
+        }
+        if (explicitId && configuredId.isNotBlank()) {
+            return configuredId
+        }
+        val rootPath = Path.of(normalizedRoot)
+        val base = rootPath.name.ifBlank { "workspace" }
+            .lowercase()
+            .replace(Regex("[^a-z0-9]+"), "-")
+            .trim('-')
+            .ifBlank { "workspace" }
+        val suffix = normalizedRoot.hashCode().toUInt().toString(16).take(8)
+        return "$base-$suffix"
+    }
+
+    private fun resolveWorkspaceName(
+        normalizedRoot: String,
+        explicitName: Boolean,
+        configuredName: String,
+    ): String {
+        if (explicitName && configuredName.isNotBlank()) return configuredName
+        return runCatching { Path.of(normalizedRoot).name }
+            .getOrNull()
+            ?.ifBlank { configuredName }
+            ?: configuredName
     }
 
     private class WorkspaceSnapshotBuildException(

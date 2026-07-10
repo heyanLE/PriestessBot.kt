@@ -22,8 +22,9 @@ class FakePlatform : Platform() {
 
     override suspend fun terminate() = Unit
 
-    override suspend fun sendMessage(session: MessageSession, chain: MessageChain) {
+    override suspend fun sendMessage(session: MessageSession, chain: MessageChain): String? {
         sentMessages += session to chain
+        return null
     }
 
     suspend fun emitText(

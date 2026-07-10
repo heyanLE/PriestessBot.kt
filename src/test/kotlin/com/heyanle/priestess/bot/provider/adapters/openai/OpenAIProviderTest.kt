@@ -9,6 +9,7 @@ import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import io.ktor.http.content.TextContent
 import io.ktor.serialization.kotlinx.json.json
@@ -19,6 +20,8 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertTrue
 
 class OpenAIProviderTest {
 
@@ -102,5 +105,38 @@ class OpenAIProviderTest {
         assertEquals("ok", response.content)
         assertEquals("stop", response.finishReason)
         assertEquals(2, response.tokenUsage.totalTokens)
+    }
+
+    @Test
+    fun `textChat surfaces non json error bodies as readable exceptions`() = runBlocking {
+        val client = HttpClient(
+            MockEngine {
+                respond(
+                    content = "gateway rejected request",
+                    status = HttpStatusCode.BadRequest,
+                    headers = headersOf(HttpHeaders.ContentType, "application/octet-stream"),
+                )
+            },
+        ) {
+            install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
+        }
+
+        val provider = OpenAIProvider(
+            config = ProviderConfig(
+                name = "deepseek-v4-flash",
+                type = "openai",
+                model = "deepseek-v4-flash",
+                baseUrl = "https://api.deepseek.com",
+                apiKey = "test-key",
+            ),
+            client = client,
+        )
+
+        val error = assertFailsWith<IllegalStateException> {
+            provider.textChat(LLMRequest(messages = listOf(ConversationMessage.user("hello"))))
+        }
+
+        assertTrue(error.message!!.contains("400"))
+        assertTrue(error.message!!.contains("gateway rejected request"))
     }
 }

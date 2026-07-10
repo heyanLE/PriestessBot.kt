@@ -26,7 +26,7 @@ interface PluginContext {
     val manifest: PluginManifest
     val pluginPath: String
 
-    fun registerExtension(type: String, name: String, description: String = "")
+    fun registerExtension(type: String, name: String)
     fun extensions(type: String? = null): List<PluginExtensionMetadata>
     fun registerTool(tool: FunctionTool)
     fun registeredTools(): List<String>
@@ -50,13 +50,12 @@ class DefaultPluginContext(
     private val providerNames = linkedSetOf<String>()
     private val platformNames = linkedSetOf<String>()
 
-    override fun registerExtension(type: String, name: String, description: String) {
+    override fun registerExtension(type: String, name: String) {
         extensionRegistry.register(
             PluginExtensionMetadata(
                 pluginId = manifest.id,
                 type = type,
                 name = name,
-                description = description,
             ),
         )
     }
@@ -69,7 +68,7 @@ class DefaultPluginContext(
         val name = tool.schema.name
         toolCase.registerPluginTool(manifest.id, tool)
         toolNames.add(name)
-        registerExtension("tool", name, tool.schema.description)
+        registerExtension("tool", name)
     }
 
     override fun registeredTools(): List<String> = toolNames.toList()
@@ -78,7 +77,7 @@ class DefaultPluginContext(
         val name = provider.metadata.name
         providerCase.registerPluginProvider(provider)
         providerNames.add(name)
-        registerExtension("provider", name, provider.metadata.displayName)
+        registerExtension("provider", name)
     }
 
     override fun registeredProviders(): List<String> = providerNames.toList()
@@ -87,7 +86,7 @@ class DefaultPluginContext(
         PlatformRegistry.unregister(metadata.name)
         PlatformRegistry.registerMeta(metadata, factory)
         platformNames.add(metadata.name)
-        registerExtension("platform", metadata.name, metadata.displayName)
+        registerExtension("platform", metadata.name)
     }
 
     override fun registeredPlatforms(): List<String> = platformNames.toList()

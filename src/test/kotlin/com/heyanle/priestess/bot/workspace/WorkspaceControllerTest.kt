@@ -15,12 +15,21 @@ import com.heyanle.priestess.bot.tool.builtin.SystemInfoTool
 import com.heyanle.priestess.bot.tool.builtin.UnloadSkillTool
 import com.heyanle.priestess.bot.tool.builtin.UseSkillTool
 import com.heyanle.priestess.bot.tool.builtin.WebSearchTool
-import kotlinx.coroutines.runBlocking
+import java.nio.file.Files
+import java.nio.file.Path
+import kotlin.io.path.absolutePathString
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonArray
+import kotlinx.serialization.json.putJsonObject
 
 class WorkspaceControllerTest {
     @Test
@@ -30,7 +39,7 @@ class WorkspaceControllerTest {
         )
         val source = ConfigBackedWorkspaceConfigSource { config }
 
-        val loaded = source.load().workspaces.single()
+        val loaded = source.load().defaults.baseConfig
 
         assertEquals(WorkspaceConfig.DEFAULT_WORKSPACE_ID, loaded.id)
         assertTrue(loaded.isDefault)
@@ -40,13 +49,14 @@ class WorkspaceControllerTest {
     }
 
     @Test
-    fun `resolves explicit workspace and falls back to default`() {
-        val controller = workspaceController(
+    fun `resolves explicit prepared workspace and falls back to default`() {
+        val source = MutableWorkspaceSource(
             listOf(
                 WorkspaceConfig(id = "default", name = "Default", enabled = true, isDefault = true),
                 WorkspaceConfig(id = "ops", name = "Ops", enabled = true),
             ),
         )
+        val controller = workspaceController(source)
 
         assertEquals("ops", controller.resolve(WorkspaceResolutionContext(metadata = mapOf("workspace_id" to "ops"))).snapshot.id)
         val fallback = controller.resolve(WorkspaceResolutionContext(platformName = "unknown"))
@@ -197,238 +207,54 @@ class WorkspaceControllerTest {
         assertEquals(listOf("local-mcp"), snapshot.mcpServerIds)
         assertEquals("mcp-server", snapshot.mcpServers.single().command)
         assertTrue(snapshot.mcpServers.single().env.isEmpty())
+        assertTrue(snapshot.mcpToolNames.isEmpty())
     }
 
     @Test
-    fun `snapshot includes resolved mcp tools after candidate initialization succeeds`() {
-        val resourceHandle = FakeMcpHandle()
-        val resolverOnlyHandle = FakeMcpHandle()
-        val resolver = FakeMcpToolResolver(
-            result = WorkspaceMcpToolResolution(
-                resources = listOf(
-                    WorkspaceMcpResource(
-                        tool = com.heyanle.priestess.bot.testkit.FakeTool(name = "local-mcp.search"),
-                        handle = resourceHandle,
-                    ),
-                ),
-                handles = listOf(resolverOnlyHandle),
-                diagnostics = listOf("mcp ok"),
-            ),
+    fun `directory backed snapshot stores mcp declarations without eager tool initialization`() {
+        val workspaceDir = Files.createTempDirectory("workspace-directory-mcp")
+        Files.createDirectories(workspaceDir.resolve("skills"))
+        Files.writeString(
+            workspaceDir.resolve("config.yaml"),
+            """
+            name: Directory Workspace
+            """.trimIndent(),
         )
+        Files.writeString(
+            workspaceDir.resolve("mcpserver.json"),
+            """
+            {
+              "mcpServers": {
+                "dir-mcp": {
+                  "command": "dir-mcp-server"
+                }
+              }
+            }
+            """.trimIndent(),
+        )
+        val resolver = FakeMcpToolResolver()
         val controller = workspaceController(
-            source = MutableWorkspaceSource(
-                listOf(
-                    WorkspaceConfig(
-                        id = "default",
-                        name = "Default",
-                        mcpServers = listOf(
-                            WorkspaceMcpServerConfig(id = "local-mcp", command = "mcp-server"),
+            source = WorkspaceConfigSource {
+                WorkspaceConfigSet(
+                    defaultWorkspaceDir = workspaceDir.toAbsolutePath().normalize().absolutePathString(),
+                    defaults = WorkspaceRuntimeDefaults(
+                        baseConfig = WorkspaceConfig(
+                            id = WorkspaceConfig.DEFAULT_WORKSPACE_ID,
+                            name = "Default",
+                            isDefault = true,
                         ),
                     ),
-                ),
-            ),
+                )
+            },
             mcpToolResolver = resolver,
         )
 
-        val snapshot = controller.get("default") ?: error("missing default")
+        val snapshot = controller.resolve().snapshot
 
-        assertEquals(listOf("local-mcp"), resolver.calls.single().map { it.id })
-        assertEquals(listOf("local-mcp.search"), snapshot.mcpToolNames)
-        assertTrue(snapshot.toolNames.contains("local-mcp.search"))
-        assertEquals(2, snapshot.mcpHandles.size)
-        assertTrue(snapshot.mcpHandles.contains(resourceHandle))
-        assertTrue(snapshot.mcpHandles.contains(resolverOnlyHandle))
-        assertTrue(snapshot.diagnostics.contains("mcp ok"))
-    }
-
-    @Test
-    fun `reload closes retired mcp handles only after pinned lease is released`() {
-        val source = MutableWorkspaceSource(
-            listOf(
-                WorkspaceConfig(
-                    id = "default",
-                    name = "Default",
-                    mcpServers = listOf(WorkspaceMcpServerConfig(id = "local-mcp-v1", command = "mcp-server-v1")),
-                ),
-            ),
-        )
-        val oldHandle = FakeMcpHandle()
-        val newHandle = FakeMcpHandle()
-        val resolver = FakeMcpToolResolver(
-            result = mcpResolution("local-mcp.search-v1", oldHandle),
-        )
-        val controller = workspaceController(
-            source = source,
-            mcpToolResolver = resolver,
-        )
-        val lease = controller.resolve().lease ?: error("missing lease")
-
-        resolver.result = mcpResolution("local-mcp.search-v2", newHandle)
-        source.workspaces = listOf(
-            WorkspaceConfig(
-                id = "default",
-                name = "Default",
-                mcpServers = listOf(WorkspaceMcpServerConfig(id = "local-mcp-v2", command = "mcp-server-v2")),
-            ),
-        )
-
-        val reload = controller.reload("default")
-
-        assertTrue(reload.success)
-        assertEquals(0, oldHandle.closeCount)
-        assertEquals(0, newHandle.closeCount)
-
-        lease.close()
-
-        assertEquals(1, oldHandle.closeCount)
-        assertEquals(0, newHandle.closeCount)
-
-        controller.close()
-
-        assertEquals(1, oldHandle.closeCount)
-        assertEquals(1, newHandle.closeCount)
-    }
-
-    @Test
-    fun `close defers current mcp handles until pinned lease is released`() {
-        val handle = FakeMcpHandle()
-        val controller = workspaceController(
-            source = MutableWorkspaceSource(
-                listOf(
-                    WorkspaceConfig(
-                        id = "default",
-                        name = "Default",
-                        mcpServers = listOf(WorkspaceMcpServerConfig(id = "local-mcp", command = "mcp-server")),
-                    ),
-                ),
-            ),
-            mcpToolResolver = FakeMcpToolResolver(result = mcpResolution("local-mcp.search", handle)),
-        )
-        val lease = controller.resolve().lease ?: error("missing lease")
-
-        controller.close()
-
-        assertEquals(0, handle.closeCount)
-
-        lease.close()
-
-        assertEquals(1, handle.closeCount)
-    }
-
-    @Test
-    fun `close is idempotent for active mcp handles`() {
-        val handle = FakeMcpHandle()
-        val controller = workspaceController(
-            source = MutableWorkspaceSource(
-                listOf(
-                    WorkspaceConfig(
-                        id = "default",
-                        name = "Default",
-                        mcpServers = listOf(WorkspaceMcpServerConfig(id = "local-mcp", command = "mcp-server")),
-                    ),
-                ),
-            ),
-            mcpToolResolver = FakeMcpToolResolver(result = mcpResolution("local-mcp.search", handle)),
-        )
-
-        controller.close()
-        controller.close()
-
-        assertEquals(1, handle.closeCount)
-    }
-
-    @Test
-    fun `stop releases workspace resources through controller lifecycle`() = runBlocking {
-        val handle = FakeMcpHandle()
-        val controller = workspaceController(
-            source = MutableWorkspaceSource(
-                listOf(
-                    WorkspaceConfig(
-                        id = "default",
-                        name = "Default",
-                        mcpServers = listOf(WorkspaceMcpServerConfig(id = "local-mcp", command = "mcp-server")),
-                    ),
-                ),
-            ),
-            mcpToolResolver = FakeMcpToolResolver(result = mcpResolution("local-mcp.search", handle)),
-        )
-
-        controller.stop()
-        controller.stop()
-
-        assertEquals(1, handle.closeCount)
-    }
-
-    @Test
-    fun `multiple leases keep retired mcp handles open until last lease is released`() {
-        val source = MutableWorkspaceSource(
-            listOf(
-                WorkspaceConfig(
-                    id = "default",
-                    name = "Default",
-                    mcpServers = listOf(WorkspaceMcpServerConfig(id = "local-mcp-v1", command = "mcp-server-v1")),
-                ),
-            ),
-        )
-        val oldHandle = FakeMcpHandle()
-        val newHandle = FakeMcpHandle()
-        val resolver = FakeMcpToolResolver(result = mcpResolution("local-mcp.search-v1", oldHandle))
-        val controller = workspaceController(source = source, mcpToolResolver = resolver)
-        val firstLease = controller.resolve().lease ?: error("missing first lease")
-        val secondLease = controller.resolve().lease ?: error("missing second lease")
-
-        resolver.result = mcpResolution("local-mcp.search-v2", newHandle)
-        source.workspaces = listOf(
-            WorkspaceConfig(
-                id = "default",
-                name = "Default",
-                mcpServers = listOf(WorkspaceMcpServerConfig(id = "local-mcp-v2", command = "mcp-server-v2")),
-            ),
-        )
-        assertTrue(controller.reload("default").success)
-
-        firstLease.close()
-        assertEquals(0, oldHandle.closeCount)
-
-        secondLease.close()
-        assertEquals(1, oldHandle.closeCount)
-        assertEquals(0, newHandle.closeCount)
-    }
-
-    @Test
-    fun `failed mcp candidate initialization keeps old snapshot and closes candidates`() {
-        val source = MutableWorkspaceSource(
-            listOf(WorkspaceConfig(id = "default", name = "Default")),
-        )
-        val candidateHandle = FakeMcpHandle()
-        val resolver = FakeMcpToolResolver(
-            failure = WorkspaceMcpResolutionException(
-                message = "boom",
-                handles = listOf(candidateHandle),
-            ),
-        )
-        val controller = workspaceController(
-            source = source,
-            mcpToolResolver = resolver,
-        )
-        val before = controller.get("default") ?: error("missing default")
-
-        source.workspaces = listOf(
-            WorkspaceConfig(
-                id = "default",
-                name = "Default",
-                mcpServers = listOf(
-                    WorkspaceMcpServerConfig(id = "local-mcp", command = "mcp-server"),
-                ),
-            ),
-        )
-        val result = controller.reload("default")
-
-        assertFalse(result.success)
-        assertEquals(before.version, controller.get("default")?.version)
-        assertEquals(before.version, result.snapshotVersion)
-        assertTrue(result.errorSummary?.contains("MCP initialization failed") == true)
-        assertEquals(1, candidateHandle.closeCount)
+        assertEquals(emptyList(), resolver.calls)
+        assertEquals(listOf("dir-mcp"), snapshot.mcpServerIds)
+        assertEquals(emptyList(), snapshot.mcpToolNames)
+        assertTrue(snapshot.toolNames.none { it.startsWith("dir-mcp.") })
     }
 
     @Test
@@ -464,26 +290,6 @@ class WorkspaceControllerTest {
         assertEquals("ops handled", skillSet.dispatch("please handle this"))
     }
 
-    @Test
-    fun `failed reload keeps old snapshot active`() {
-        val source = MutableWorkspaceSource(
-            listOf(WorkspaceConfig(id = "default", name = "Default")),
-        )
-        val controller = workspaceController(source)
-        val before = controller.get("default") ?: error("missing default")
-
-        source.workspaces = listOf(
-            WorkspaceConfig(id = "default", name = "Default"),
-            WorkspaceConfig(id = "default", name = "Duplicate"),
-        )
-        val result = controller.reload("default")
-
-        assertFalse(result.success)
-        assertEquals(before.version, controller.get("default")?.version)
-        assertEquals(before.version, result.snapshotVersion)
-        assertTrue(result.errorSummary?.contains("Duplicate workspace id") == true)
-    }
-
     private fun workspaceController(workspaces: List<WorkspaceConfig>): WorkspaceController {
         return workspaceController(MutableWorkspaceSource(workspaces))
     }
@@ -505,13 +311,21 @@ class WorkspaceControllerTest {
             register(SystemInfoTool())
             register(WebSearchTool())
         }
-        return WorkspaceController(
+        val controller = WorkspaceController(
             source = source,
             toolCase = ToolCase(tools),
             skillCase = skillCase,
             mcpToolResolver = mcpToolResolver,
             nowProvider = { 1_000L },
         )
+        if (source is MutableWorkspaceSource) {
+            source.preparedWorkspaceIds()
+                .filter { it != WorkspaceConfig.DEFAULT_WORKSPACE_ID }
+                .forEach { workspaceId ->
+                    controller.prepare(source.directoryFor(workspaceId), "seed workspace")
+                }
+        }
+        return controller
     }
 
     private fun workspaceController(
@@ -524,9 +338,109 @@ class WorkspaceControllerTest {
     )
 
     private class MutableWorkspaceSource(
-        var workspaces: List<WorkspaceConfig>,
+        initialWorkspaces: List<WorkspaceConfig>,
     ) : WorkspaceConfigSource {
-        override fun load(): WorkspaceConfigSet = WorkspaceConfigSet(workspaces)
+        private val json = Json { prettyPrint = true; encodeDefaults = true }
+        private val workspaceDirs = linkedMapOf<String, Path>()
+
+        var workspaces: List<WorkspaceConfig> = initialWorkspaces
+            set(value) {
+                field = value
+                sync(value)
+            }
+
+        init {
+            sync(workspaces)
+        }
+
+        override fun load(): WorkspaceConfigSet = WorkspaceConfigSet(
+            workspaces = workspaces,
+            defaultWorkspaceDir = defaultWorkspaceConfig()
+                ?.let { workspaceDirs[it.id] }
+                ?.toAbsolutePath()
+                ?.normalize()
+                ?.absolutePathString()
+                .orEmpty(),
+            defaults = WorkspaceRuntimeDefaults(defaultWorkspaceConfig() ?: WorkspaceConfig(isDefault = true)),
+        )
+
+        fun preparedWorkspaceIds(): List<String> = workspaces.map { it.id }.distinct()
+
+        fun directoryFor(id: String): String {
+            return workspaceDirs.getValue(id).toAbsolutePath().normalize().absolutePathString()
+        }
+
+        private fun defaultWorkspaceConfig(): WorkspaceConfig? {
+            return workspaces.firstOrNull { it.isDefault } ?: workspaces.firstOrNull()
+        }
+
+        private fun sync(configs: List<WorkspaceConfig>) {
+            configs.distinctBy { it.id }.forEach { config ->
+                val root = workspaceDirs.getOrPut(config.id) {
+                    Files.createTempDirectory("workspace-${config.id}")
+                }
+                writeWorkspace(root, config)
+            }
+        }
+
+        private fun writeWorkspace(root: Path, config: WorkspaceConfig) {
+            deleteChildren(root)
+            Files.createDirectories(root.resolve("skills"))
+            Files.writeString(root.resolve("config.yaml"), json.encodeToString(WorkspaceConfig.serializer(), config))
+            Files.writeString(
+                root.resolve("mcpserver.json"),
+                buildMcpJson(config.mcpServers),
+            )
+            config.skills.forEach { skill ->
+                val skillDir = root.resolve("skills").resolve(skill.name)
+                Files.createDirectories(skillDir)
+                Files.writeString(
+                    skillDir.resolve("SKILL.md"),
+                    """
+                    ---
+                    name: ${skill.name}
+                    description: ${skill.name} description
+                    ---
+                    # Skill: ${skill.name}
+                    """.trimIndent(),
+                )
+            }
+        }
+
+        private fun buildMcpJson(servers: List<WorkspaceMcpServerConfig>): String {
+            return buildJsonObject {
+                putJsonObject("mcpServers") {
+                    servers.forEach { server ->
+                        putJsonObject(server.id) {
+                            put("enabled", server.enabled)
+                            put("transport", server.transport)
+                            put("command", server.command)
+                            put("url", server.url)
+                            putJsonArray("args") {
+                                server.args.forEach { add(JsonPrimitive(it)) }
+                            }
+                            putJsonObject("env") {
+                                server.env.forEach { (key, value) ->
+                                    put(key, value)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+                .toString()
+        }
+
+        private fun deleteChildren(root: Path) {
+            if (!Files.exists(root)) return
+            Files.list(root).use { children ->
+                children.forEach { child ->
+                    Files.walk(child)
+                        .sorted(Comparator.reverseOrder())
+                        .forEach(Files::deleteIfExists)
+                }
+            }
+        }
     }
 
     private class TestSkill(
@@ -541,22 +455,7 @@ class WorkspaceControllerTest {
         override suspend fun execute(message: String): String = response
     }
 
-    private fun mcpResolution(toolName: String, handle: WorkspaceMcpClientHandle): WorkspaceMcpToolResolution {
-        return WorkspaceMcpToolResolution(
-            resources = listOf(
-                WorkspaceMcpResource(
-                    tool = com.heyanle.priestess.bot.testkit.FakeTool(name = toolName),
-                    handle = handle,
-                ),
-            ),
-            handles = listOf(handle),
-        )
-    }
-
-    private class FakeMcpToolResolver(
-        var result: WorkspaceMcpToolResolution = WorkspaceMcpToolResolution(),
-        private val failure: RuntimeException? = null,
-    ) : WorkspaceMcpToolResolver {
+    private class FakeMcpToolResolver : WorkspaceMcpToolResolver {
         val calls = mutableListOf<List<WorkspaceMcpServerConfig>>()
 
         override fun resolve(
@@ -564,17 +463,7 @@ class WorkspaceControllerTest {
             servers: List<WorkspaceMcpServerConfig>,
         ): WorkspaceMcpToolResolution {
             calls += servers
-            failure?.let { throw it }
-            return result
-        }
-    }
-
-    private class FakeMcpHandle : WorkspaceMcpClientHandle {
-        var closeCount = 0
-            private set
-
-        override fun close() {
-            closeCount += 1
+            return WorkspaceMcpToolResolution()
         }
     }
 }

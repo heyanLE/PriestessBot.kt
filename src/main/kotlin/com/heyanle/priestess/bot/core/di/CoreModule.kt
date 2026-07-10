@@ -92,6 +92,7 @@ val coreModule = module {
             conversationCaseProvider = { get<ConversationCase>() },
             memoryCaseProvider = { get<MemoryCase>() },
             reminderCaseProvider = { get<ReminderCase>() },
+            workspaceCaseProvider = { get<WorkspaceCase>() },
         )
         toolCase
     }

@@ -30,6 +30,9 @@ class BuiltinToolsRegistrationTest {
             "list_tools",
             "use_skill",
             "unload_skill",
+            "skills_list",
+            "skill_view",
+            "skill_manage",
             "health_check",
             "fetch_url",
             "conversation_search",
@@ -39,6 +42,15 @@ class BuiltinToolsRegistrationTest {
             "create_reminder",
             "list_reminders",
             "delete_reminder",
+            "web_search",
+            "web_extract",
+            "terminal",
+            "process",
+            "read_terminal",
+            "read_file",
+            "write_file",
+            "patch",
+            "search_files",
         )
 
         assertTrue(tools.keys.containsAll(expected))

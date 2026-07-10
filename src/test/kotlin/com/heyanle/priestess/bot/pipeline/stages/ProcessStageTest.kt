@@ -16,13 +16,11 @@ import com.heyanle.priestess.bot.testkit.testConfigCase
 import com.heyanle.priestess.bot.testkit.testPipelineContext
 import com.heyanle.priestess.bot.tool.ToolCase
 import com.heyanle.priestess.bot.tool.ToolController
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
-import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 class ProcessStageTest {
@@ -59,7 +57,7 @@ class ProcessStageTest {
         ctx.agentContext = testAgentContext(messages = mutableListOf())
 
         val flow = stage(providerController, metrics).process(ctx)
-        assertNotNull(flow).collect()
+        assertEquals(null, flow)
 
         val response = assertIs<AgentResponse.Final>(ctx.agentResponse)
         assertEquals("final from provider", response.content)
@@ -80,7 +78,7 @@ class ProcessStageTest {
         val ctx = testPipelineContext(text = "current question")
         ctx.agentContext = testAgentContext(
             messages = mutableListOf(),
-            metadata = mapOf("provider_name" to "workspace-provider"),
+            metadata = mapOf("providerName" to "workspace-provider"),
         )
 
         stage(providerController).process(ctx)

@@ -7,6 +7,7 @@ import io.ktor.client.*
 import io.ktor.client.call.*
 import io.ktor.client.engine.cio.*
 import io.ktor.client.plugins.contentnegotiation.*
+import io.ktor.client.plugins.*
 import io.ktor.client.request.*
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
@@ -30,6 +31,10 @@ class OllamaProvider(
 
     private val client = HttpClient(CIO) {
         install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
+        install(HttpTimeout) {
+            requestTimeoutMillis = 180_000
+            connectTimeoutMillis = 10_000
+        }
     }
 
     private val baseUrl: String

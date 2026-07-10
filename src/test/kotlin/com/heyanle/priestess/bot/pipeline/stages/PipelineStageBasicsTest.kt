@@ -82,38 +82,9 @@ class PipelineStageBasicsTest {
     }
 
     @Test
-    fun `session status stops disabled session and allows re-enabled session`() = runBlocking {
-        val stage = SessionStatusStage(PipelineConfig())
-        val disabled = testPipelineContext(sessionId = "session-disabled")
-        val enabledAgain = testPipelineContext(sessionId = "session-disabled")
-
-        stage.disableSession("session-disabled")
-        stage.process(disabled)
-        stage.enableSession("session-disabled")
-        stage.process(enabledAgain)
-
-        assertTrue(disabled.isStopped)
-        assertFalse(enabledAgain.isStopped)
-        assertTrue(stage.isSessionEnabled("session-disabled"))
-    }
-
-    @Test
-    fun `content safety placeholder allows blank and text content when enabled`() = runBlocking {
-        val stage = ContentSafetyStage(PipelineConfig(contentSafetyEnabled = true))
-        val blank = testPipelineContext(text = "")
-        val text = testPipelineContext(text = "ordinary message")
-
-        stage.process(blank)
-        stage.process(text)
-
-        assertFalse(blank.isStopped)
-        assertFalse(text.isStopped)
-    }
-
-    @Test
     fun `respond stage sends decorated response through source platform`() = runBlocking {
         val ctx = testPipelineContext()
-        ctx.shared["decoratedResponse"] = "hello back"
+        ctx.decoratedResponse = "hello back"
         val platform = ctx.event.platform as com.heyanle.priestess.bot.testkit.FakePlatform
 
         RespondStage().process(ctx)

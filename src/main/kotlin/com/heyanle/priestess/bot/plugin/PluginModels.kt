@@ -47,5 +47,4 @@ data class PluginExtensionMetadata(
     val pluginId: String,
     val type: String,
     val name: String,
-    val description: String = "",
 )

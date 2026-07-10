@@ -8,8 +8,6 @@ import com.heyanle.priestess.bot.provider.model.ConversationMessage
 class TokenWindowStrategy(
     private val tokenCounter: TokenCounter,
 ) : ContextCompressStrategy {
-    override val name: String = "token_window"
-
     override suspend fun compress(
         messages: List<ConversationMessage>,
         systemMessage: ConversationMessage?,
@@ -68,6 +66,15 @@ class TokenWindowStrategy(
             }
         }
 
+        // Keep tool-call rounds structurally valid for OpenAI-compatible providers:
+        // every retained tool message must still have its parent assistant tool_calls message.
+        currentTokens = repairOrphanToolMessages(
+            originalMessages = messages,
+            result = result,
+            currentTokens = currentTokens,
+            availableTokens = availableTokens,
+        )
+
         if (systemMessage != null && result.none { it.role == "system" }) {
             result.add(0, systemMessage)
         }
@@ -97,5 +104,50 @@ class TokenWindowStrategy(
         for (idx in indicesToRemove) {
             result.removeAt(idx)
         }
+    }
+
+    private fun repairOrphanToolMessages(
+        originalMessages: List<ConversationMessage>,
+        result: MutableList<ConversationMessage>,
+        currentTokens: Int,
+        availableTokens: Int,
+    ): Int {
+        var tokens = currentTokens
+        val assistantByToolCallId = result
+            .filter { it.role == "assistant" && !it.toolCalls.isNullOrEmpty() }
+            .flatMap { assistant ->
+                assistant.toolCalls!!.map { it.id to assistant }
+            }
+            .toMap()
+
+        val orphanToolIds = result
+            .filter { it.role == "tool" && it.toolCallId != null && it.toolCallId !in assistantByToolCallId }
+            .mapNotNull { it.toolCallId }
+            .distinct()
+
+        for (toolCallId in orphanToolIds) {
+            val assistant = originalMessages.find { msg ->
+                msg.role == "assistant" && msg.toolCalls?.any { it.id == toolCallId } == true
+            }
+            val assistantTokens = assistant?.let(tokenCounter::count)
+            if (assistant != null && assistantTokens != null && tokens + assistantTokens <= availableTokens) {
+                val insertAt = result.indexOfFirst { it.role == "tool" && it.toolCallId == toolCallId }
+                    .takeIf { it >= 0 }
+                    ?: result.size
+                result.add(insertAt, assistant)
+                tokens += assistantTokens
+            } else {
+                val iterator = result.listIterator()
+                while (iterator.hasNext()) {
+                    val msg = iterator.next()
+                    if (msg.role == "tool" && msg.toolCallId == toolCallId) {
+                        tokens -= tokenCounter.count(msg)
+                        iterator.remove()
+                    }
+                }
+            }
+        }
+
+        return tokens
     }
 }

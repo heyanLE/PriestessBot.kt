@@ -425,3 +425,132 @@ data class DeleteResponse(
 data class ExpireMemoryResponse(
     val expired: Int,
 )
+
+// ─── Config Layers ───
+
+/**
+ * 数据库配置层响应，包含当前生效配置和修订信息。
+ */
+@Serializable
+data class DatabaseConfigLayerResponse(
+    val config: com.heyanle.priestess.bot.config.PriestessConfig,
+    val revision: PersistedConfigRevisionDto? = null,
+    val diagnostics: List<String> = emptyList(),
+)
+
+/**
+ * 持久化配置修订 DTO。
+ */
+@Serializable
+data class PersistedConfigRevisionDto(
+    val revision: Long,
+    val savedAt: Long,
+    val source: String,
+)
+
+/**
+ * 环境变量覆盖摘要 DTO。
+ */
+@Serializable
+data class EnvironmentOverrideSummaryDto(
+    val path: String,
+    val envKey: String,
+    val summary: String,
+    val sensitive: Boolean = false,
+)
+
+/**
+ * 环境变量覆盖汇总响应。
+ */
+@Serializable
+data class EnvironmentOverrideSummaryResponse(
+    val overrides: List<EnvironmentOverrideSummaryDto>,
+    val diagnostics: List<String> = emptyList(),
+)
+
+// ─── Working Directory ───
+
+/**
+ * 工作目录 Agent DTO。
+ */
+@Serializable
+data class WorkingDirectoryAgentDto(
+    val name: String,
+    val filePath: String,
+)
+
+/**
+ * 工作目录技能 DTO。
+ */
+@Serializable
+data class WorkingDirectorySkillDto(
+    val name: String,
+    val directoryPath: String,
+    val markdownPath: String,
+    val metadataPath: String? = null,
+    val enabled: Boolean = true,
+    val settings: Map<String, String> = emptyMap(),
+)
+
+/**
+ * 工作目录摘要响应。
+ */
+@Serializable
+data class WorkingDirectorySummaryResponse(
+    val configuredPath: String,
+    val effectivePath: String,
+    val pathSource: String = "config",
+    val valid: Boolean,
+    val exists: Boolean,
+    val manifestPath: String? = null,
+    val manifestFound: Boolean = false,
+    val agents: List<WorkingDirectoryAgentDto> = emptyList(),
+    val skills: List<WorkingDirectorySkillDto> = emptyList(),
+    val diagnostics: List<String> = emptyList(),
+    val unsupportedFields: List<String> = emptyList(),
+    val lastLoadedAt: Long = 0,
+)
+
+/**
+ * 工作目录更新请求。
+ */
+@Serializable
+data class WorkingDirectoryUpdateRequest(
+    val path: String,
+)
+
+// ─── Effective Runtime Preview ───
+
+/**
+ * 生效运行时预览请求。
+ */
+@Serializable
+data class EffectiveRuntimePreviewRequest(
+    val workdirPath: String? = null,
+    val agent: com.heyanle.priestess.bot.config.AgentConfig? = null,
+    val providerName: String? = null,
+    val maxInjectedMemories: Int? = null,
+)
+
+/**
+ * 生效值追踪 DTO。
+ */
+@Serializable
+data class EffectiveValueTraceDto(
+    val path: String,
+    val summary: String,
+    val source: String,
+    val overriddenBy: String? = null,
+)
+
+/**
+ * 生效运行时预览响应。
+ */
+@Serializable
+data class EffectiveRuntimePreviewResponse(
+    val config: com.heyanle.priestess.bot.config.PriestessConfig,
+    val workingDirectory: WorkingDirectorySummaryResponse,
+    val memoryPolicy: com.heyanle.priestess.bot.workspace.WorkspaceMemoryPolicyConfig,
+    val trace: List<EffectiveValueTraceDto> = emptyList(),
+    val diagnostics: List<String> = emptyList(),
+)

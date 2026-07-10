@@ -1,17 +1,23 @@
-import { defineConfig } from 'vite';
+import { defineConfig, loadEnv } from 'vite';
 import vue from '@vitejs/plugin-vue';
 
-export default defineConfig({
-  plugins: [vue()],
-  server: {
-    port: 5173,
-    proxy: {
-      '/api': 'http://localhost:8080',
-      '/health': 'http://localhost:8080',
-      '/ws': {
-        target: 'ws://localhost:8080',
-        ws: true,
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '');
+  const backendPort = env.VITE_DASHBOARD_PORT || '18080';
+  const backendUrl = `http://127.0.0.1:${backendPort}`;
+
+  return {
+    plugins: [vue()],
+    server: {
+      port: 5173,
+      proxy: {
+        '/api': backendUrl,
+        '/health': backendUrl,
+        '/ws': {
+          target: `ws://127.0.0.1:${backendPort}`,
+          ws: true,
+        },
       },
     },
-  },
+  };
 });

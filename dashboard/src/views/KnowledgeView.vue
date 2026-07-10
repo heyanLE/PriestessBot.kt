@@ -4,14 +4,14 @@
       <div class="knowledge-hero-grid">
         <div class="knowledge-copy">
           <div class="knowledge-band">
-            <span>Priestess / Knowledge Retrieval</span>
-            <span>Source Testing Desk</span>
+            <span>Assets</span>
+            <span>Knowledge</span>
           </div>
 
           <h2>Knowledge base registry</h2>
           <p>
-            Curate retrieval sources, inject fresh documents, and test ranking behavior from one
-            daytime research console before memories or agent calls depend on these materials.
+            Curate retrieval sources, inject fresh documents, and test ranking behavior before
+            memories or agent calls depend on these materials.
           </p>
 
           <div class="grid knowledge-signal-grid">
@@ -27,7 +27,7 @@
           <article class="card knowledge-rail-card">
             <div class="section-title compact">
               <div>
-                <h3>Research doctrine</h3>
+                <h3>What matters here</h3>
                 <p>Keep sources few, readable, and easy to validate before they enter runtime use.</p>
               </div>
             </div>

@@ -4,14 +4,14 @@
       <div class="governance-grid">
         <div class="governance-copy">
           <div class="governance-band">
-            <span>Priestess / Tool Governance</span>
-            <span>Day Shift Policy Deck</span>
+            <span>Assets</span>
+            <span>Tools</span>
           </div>
 
           <h2>Runtime tool registry</h2>
           <p>
             Review callable surfaces, explicit allow and deny posture, and risk pressure from one
-            daytime governance board before requests fan into the runtime.
+            structured registry before requests fan into the runtime.
           </p>
 
           <div class="grid governance-signal-grid">
@@ -27,8 +27,8 @@
           <article class="card rail-card">
             <div class="section-title compact">
               <div>
-                <h3>Registry doctrine</h3>
-                <p>Priestess keeps tools readable: scope first, risk explicit, overrides visible.</p>
+                <h3>What matters here</h3>
+                <p>Keep scope, risk, and overrides readable before changing tool policy.</p>
               </div>
             </div>
 
@@ -71,7 +71,7 @@
       <section class="panel registry-panel">
         <div class="section-title">
           <div>
-            <h2>Tool registry board</h2>
+            <h2>Tool registry</h2>
             <p>{{ filteredTools.length }} of {{ store.tools.length }} tools visible after control filters.</p>
           </div>
           <div class="toolbar">

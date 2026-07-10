@@ -43,6 +43,7 @@ class ConfigController(
     private val _serverConfigFlow = MutableStateFlow(_configFlow.value.server)
     private val _pluginConfigFlow = MutableStateFlow(_configFlow.value.plugins)
     private val _subAgentConfigFlow = MutableStateFlow(_configFlow.value.subAgents)
+    private val _workspaceRuntimeConfigFlow = MutableStateFlow(_configFlow.value.workspace)
 
     val configFlow: StateFlow<PriestessConfig> = _configFlow.asStateFlow()
 
@@ -54,6 +55,7 @@ class ConfigController(
     val serverConfigFlow: StateFlow<ServerConfig> = _serverConfigFlow.asStateFlow()
     val pluginConfigFlow: StateFlow<PluginConfig> = _pluginConfigFlow.asStateFlow()
     val subAgentConfigFlow: StateFlow<SubAgentOrchestrationConfig> = _subAgentConfigFlow.asStateFlow()
+    val workspaceRuntimeConfigFlow: StateFlow<WorkspaceRuntimeConfig> = _workspaceRuntimeConfigFlow.asStateFlow()
 
     init {
         if (_configFlow.value.server.configWatchEnabled) {
@@ -144,6 +146,7 @@ class ConfigController(
         _serverConfigFlow.value = config.server
         _pluginConfigFlow.value = config.plugins
         _subAgentConfigFlow.value = config.subAgents
+        _workspaceRuntimeConfigFlow.value = config.workspace
     }
 
     private fun load(): PriestessConfig {
@@ -193,7 +196,10 @@ class ConfigController(
             directory = envString("PRIESTESS_PLUGINS_DIRECTORY", config.plugins.directory),
             autoDiscover = envBoolean("PRIESTESS_PLUGINS_AUTO_DISCOVER", config.plugins.autoDiscover),
         )
-        return config.copy(server = server, database = database, plugins = plugins)
+        val workspace = config.workspace.copy(
+            defaultDir = envString("PRIESTESS_WORKSPACE_DEFAULT_DIR", config.workspace.defaultDir),
+        )
+        return config.copy(server = server, database = database, plugins = plugins, workspace = workspace)
     }
 
     private fun envString(name: String, fallback: String): String {

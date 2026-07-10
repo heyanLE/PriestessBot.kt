@@ -9,8 +9,7 @@ import com.heyanle.priestess.bot.core.controller.BaseController
 class AgentController : BaseController("AgentController") {
     fun createAgent(config: AgentConfig): Agent {
         val compressStrategy = when (config.compressStrategy.lowercase()) {
-            "token_window" -> CompressStrategy.TOKEN_WINDOW
-            "llm_compress" -> CompressStrategy.LLM_COMPRESS
+            "token_window", "llm_compress" -> CompressStrategy.TOKEN_WINDOW
             else -> CompressStrategy.ROUND_TRUNCATION
         }
 

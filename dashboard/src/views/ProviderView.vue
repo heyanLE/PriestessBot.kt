@@ -4,14 +4,14 @@
       <div class="tactical-list-hero-grid">
         <div class="tactical-list-copy">
           <div class="tactical-list-band">
-            <span>Priestess / Provider Desk</span>
-            <span>Hermes Capability Sweep</span>
+            <span>Assets</span>
+            <span>Providers</span>
           </div>
 
           <h2>Provider capability matrix</h2>
           <p>
-            Audit routing lanes, capability coverage, and health posture from one daytime control
-            surface before the runtime hands off requests.
+            Review provider coverage, capability depth, and health posture from one clean
+            inventory before the runtime hands off requests.
           </p>
 
           <div class="tactical-stat-grid">
@@ -39,8 +39,8 @@
         </div>
 
         <aside class="tactical-ledger">
-          <h3>Operational ledger</h3>
-          <p>Priestess keeps the provider mesh legible: capabilities first, failures isolated, routes obvious.</p>
+          <h3>What matters here</h3>
+          <p>Use capability coverage to compare fit, then verify online status only when a runtime issue appears.</p>
 
           <div class="tactical-ledger-row">
             <span>Health sweep</span>
@@ -51,7 +51,7 @@
             <strong>{{ streamingReadyCount }} lanes support live response flow</strong>
           </div>
           <div class="tactical-ledger-row">
-            <span>Primary doctrine</span>
+            <span>Operator note</span>
             <strong>Keep high-capability routes visible before agent routing decisions fan out.</strong>
           </div>
         </aside>
@@ -61,7 +61,7 @@
     <section class="panel tactical-table-panel">
       <div class="section-title">
         <div>
-          <h2>Provider roster</h2>
+          <h2>Provider registry</h2>
           <p>{{ store.providers.length }} runtime providers registered.</p>
         </div>
         <button type="button" class="primary" @click="store.testProviders()">Test All</button>

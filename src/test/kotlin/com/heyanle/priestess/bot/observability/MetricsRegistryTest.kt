@@ -180,7 +180,7 @@ class MetricsRegistryTest {
 
         override suspend fun run(): Job = Job()
         override suspend fun terminate() = Unit
-        override suspend fun sendMessage(session: MessageSession, chain: MessageChain) = Unit
+        override suspend fun sendMessage(session: MessageSession, chain: MessageChain): String? = null
     }
 
     private fun messageEvent(text: String): MessageEvent {

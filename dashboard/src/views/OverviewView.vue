@@ -1,273 +1,211 @@
 <template>
-  <div class="overview-command">
-    <section class="panel command-deck">
-      <div class="command-shell">
-        <div class="command-band">
-          <span class="band-label">Priestess / Day Shift</span>
-          <span class="band-index">Hermes Command Shell</span>
-        </div>
+  <div class="overview-page">
+    <section class="panel overview-hero">
+      <div class="overview-hero-copy">
+        <span class="overview-eyebrow">Overview</span>
+        <h1>Keep the runtime healthy.</h1>
+        <p>
+          Monitor incidents, effective runtime, validation signals, and recent traffic from one
+          clean operator workspace.
+        </p>
+      </div>
 
-        <div class="command-head">
-          <div class="command-copy">
-            <p class="command-kicker">Tactical Overview</p>
-            <h1>Daylight command board</h1>
-            <p>
-              Priestess core aligned to Hermes shell order. Review runtime stability, relay
-              coverage, and live session movement from one industrial daytime surface.
-            </p>
-          </div>
-
-          <div class="command-side">
-            <div class="command-identity">
-              <span class="command-identity-mark">
-                <img src="/assets/priestess-icon.jpg" alt="Priestess tactical crest" />
-              </span>
-              <div class="command-identity-copy">
-                <span>Priestess Core</span>
-                <strong>Day protocol active</strong>
-                <p>Light-theme command doctrine with Hermes shell discipline and industrial signal framing.</p>
-              </div>
-            </div>
-
-            <div class="command-tag-list">
-              <span class="command-tag">Runtime Watch</span>
-              <span class="command-tag">Relay Order</span>
-              <span class="command-tag">Escalation Ready</span>
-            </div>
-
-            <figure class="command-persona">
-              <figcaption>
-                <span>Visual Anchor</span>
-                <strong>Sidebar persona engaged</strong>
-              </figcaption>
-            </figure>
-
-            <div class="command-status-block">
-              <span class="inline-status" :class="healthTone">
-                <span class="status-dot"></span>
-                {{ healthStatus }}
-              </span>
-              <strong>{{ commandHeadline }}</strong>
-              <p>{{ commandDetail }}</p>
-            </div>
-          </div>
-        </div>
-
-        <div class="command-meta">
-          <div class="meta-cell">
-            <span>Last sync</span>
-            <strong>{{ lastPulseLabel }}</strong>
-          </div>
-          <div class="meta-cell">
-            <span>Uptime</span>
-            <strong>{{ formatDuration(store.health?.uptimeMillis ?? 0) }}</strong>
-          </div>
-          <div class="meta-cell">
-            <span>Nominal sectors</span>
-            <strong>{{ healthyComponentCount }}/{{ componentRows.length }}</strong>
-          </div>
-          <div class="meta-cell">
-            <span>Live sessions</span>
-            <strong>{{ store.conversations.length }}</strong>
-          </div>
-        </div>
-
-        <div class="command-rail">
-          <RouterLink class="button-link primary" to="/conversations">Open Live Sessions</RouterLink>
-          <RouterLink class="button-link" to="/effective-runtime">Inspect Runtime</RouterLink>
-          <RouterLink class="button-link" to="/config">Review Config</RouterLink>
-        </div>
+      <div class="overview-hero-actions">
+        <RouterLink class="button-link" to="/logs">Open logs</RouterLink>
+        <RouterLink class="button-link" to="/effective-runtime">Inspect runtime</RouterLink>
+        <RouterLink class="button-link primary" to="/agent">Run validation</RouterLink>
       </div>
     </section>
 
-    <section class="grid tactical-grid">
-      <article
-        v-for="card in tacticalCards"
-        :key="card.code"
-        class="panel tactical-card"
-        :class="`tone-${card.tone}`"
-      >
-        <span class="card-code">{{ card.code }}</span>
-        <div class="card-row">
-          <div>
-            <p class="card-label">{{ card.label }}</p>
-            <strong>{{ card.value }}</strong>
-          </div>
-          <span class="inline-status" :class="card.tone">{{ card.badge }}</span>
-        </div>
-        <p class="card-detail">{{ card.detail }}</p>
-        <RouterLink class="card-link" :to="card.to">Open {{ card.linkLabel }}</RouterLink>
+    <section class="overview-metric-grid">
+      <article v-for="metric in metrics" :key="metric.label" class="card overview-metric-card">
+        <span class="overview-metric-label">{{ metric.label }}</span>
+        <strong>{{ metric.value }}</strong>
+        <p>{{ metric.detail }}</p>
       </article>
     </section>
 
-    <div class="overview-grid">
-      <section class="panel sector-panel">
-        <div class="section-title">
-          <div>
-            <p class="section-kicker">Sector Map</p>
-            <h2>Component readiness</h2>
-            <p>
-              {{ healthyComponentCount }}/{{ componentRows.length }} sectors nominal.
-              {{ attentionComponentCount > 0 ? `${attentionComponentCount} sectors require review.` : 'No watchpoints in the latest snapshot.' }}
-            </p>
-          </div>
-          <span class="inline-status" :class="healthTone">{{ healthBadge }}</span>
-        </div>
-
-        <EmptyState
-          v-if="componentRows.length === 0"
-          title="No component report"
-          detail="Health snapshots appear after the local API responds."
-        />
-        <div v-else class="sector-list">
-          <article
-            v-for="row in componentRows"
-            :key="row.name"
-            class="sector-row"
-            :class="`tone-${row.tone}`"
-          >
-            <div class="sector-main">
-              <div class="sector-label">
-                <strong>{{ row.name }}</strong>
-                <span>{{ row.signal }}</span>
-              </div>
-              <StatusDot :label="row.status" :tone="row.tone" />
-            </div>
-            <div class="sector-bar">
-              <span :style="{ width: `${row.coverage}%` }"></span>
-            </div>
-          </article>
-        </div>
-      </section>
-
-      <aside class="overview-side">
-        <section class="panel pulse-panel">
-          <div class="section-title compact">
+    <section class="overview-workbench">
+      <div class="overview-primary">
+        <article class="panel">
+          <div class="section-title">
             <div>
-              <p class="section-kicker">Pulse</p>
-              <h2>Runtime pulse</h2>
-              <p>{{ pulseCaption }}</p>
+              <h2>Incident queue</h2>
+              <p>Start with the newest watchpoints and jump straight into diagnosis.</p>
             </div>
+            <RouterLink class="button-link" to="/logs">Open traces</RouterLink>
           </div>
 
-          <div class="pulse-stack">
-            <div class="pulse-item">
-              <span>Conversations</span>
-              <strong>{{ store.conversations.length }}</strong>
-              <small>{{ trackedConversationPlatforms }} platforms with live traces</small>
-            </div>
-            <div class="pulse-item">
-              <span>Workspaces</span>
-              <strong>{{ store.workspaces.workspaces.length }}</strong>
-              <small>{{ enabledWorkspaceCount }} enabled routing cells</small>
-            </div>
-            <div class="pulse-item">
-              <span>Diagnostics</span>
-              <strong>{{ diagnosticEntries.length }}</strong>
-              <small>{{ diagnosticEntries.length > 0 ? 'Runtime markers available for inspection' : 'No extra trace markers reported' }}</small>
-            </div>
-          </div>
-        </section>
+          <EmptyState
+            v-if="incidentItems.length === 0"
+            title="No incidents reported"
+            detail="Component health and runtime diagnostics look clear in the latest refresh."
+          />
 
-        <section class="panel directive-panel">
-          <div class="section-title compact">
-            <div>
-              <p class="section-kicker">Directives</p>
-              <h2>Operator lanes</h2>
-              <p>Jump into the densest control surfaces without leaving the board.</p>
-            </div>
-          </div>
-
-          <nav class="directive-list">
+          <div v-else class="overview-incident-list">
             <RouterLink
-              v-for="link in directiveLinks"
-              :key="link.code"
-              :to="link.to"
-              class="directive-link"
+              v-for="item in incidentItems"
+              :key="item.id"
+              class="overview-incident-item"
+              :to="item.to"
             >
-              <span class="directive-code">{{ link.code }}</span>
-              <span class="directive-copy">
-                <strong>{{ link.title }}</strong>
-                <span>{{ link.detail }}</span>
-              </span>
-              <span class="directive-value">{{ link.value }}</span>
+              <div class="overview-incident-head">
+                <span class="inline-status" :class="item.tone">{{ item.badge }}</span>
+                <span class="overview-incident-action">{{ item.action }}</span>
+              </div>
+              <strong>{{ item.title }}</strong>
+              <p>{{ item.detail }}</p>
             </RouterLink>
-          </nav>
-        </section>
+          </div>
+        </article>
+
+        <article class="panel">
+          <div class="section-title">
+            <div>
+              <h2>Recent conversations</h2>
+              <p>Use live traffic as the fastest way to verify behavior after a change.</p>
+            </div>
+            <RouterLink class="button-link" to="/conversations">All sessions</RouterLink>
+          </div>
+
+          <EmptyState
+            v-if="recentConversations.length === 0"
+            title="No conversations yet"
+            detail="Once a platform starts receiving traffic, the newest sessions will appear here."
+          />
+
+          <div v-else class="table-wrap">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Platform</th>
+                  <th>Session</th>
+                  <th>Updated</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="conversation in recentConversations" :key="conversation.id" class="clickable-row">
+                  <td>{{ conversation.platform }}</td>
+                  <td>
+                    <RouterLink :to="`/conversations/${conversation.id}`">
+                      <code>{{ conversation.sessionId }}</code>
+                    </RouterLink>
+                  </td>
+                  <td>{{ formatTime(conversation.updatedAt) }}</td>
+                  <td>
+                    <span class="inline-status" :class="recencyTone(conversation.updatedAt)">
+                      {{ recencyLabel(conversation.updatedAt) }}
+                    </span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </article>
+      </div>
+
+      <aside class="overview-secondary">
+        <article class="panel">
+          <div class="section-title">
+            <div>
+              <h2>Effective runtime</h2>
+              <p>See what is actually in effect before touching persistent config.</p>
+            </div>
+            <RouterLink class="button-link" to="/effective-runtime">Open</RouterLink>
+          </div>
+
+          <div class="detail-list">
+            <div class="detail-item">
+              <span>Workspace</span>
+              <strong>{{ runtimeWorkspace }}</strong>
+            </div>
+            <div class="detail-item">
+              <span>Agent</span>
+              <strong>{{ runtimeAgent }}</strong>
+            </div>
+            <div class="detail-item">
+              <span>Provider</span>
+              <strong>{{ runtimeProvider }}</strong>
+            </div>
+            <div class="detail-item">
+              <span>Tool policy</span>
+              <strong>{{ toolPolicySummary }}</strong>
+            </div>
+            <div class="detail-item">
+              <span>Detected skills</span>
+              <strong>{{ detectedSkills }}</strong>
+            </div>
+            <div class="detail-item">
+              <span>Trace rows</span>
+              <strong>{{ traceRowCount }}</strong>
+            </div>
+          </div>
+        </article>
+
+        <article class="panel">
+          <div class="section-title">
+            <div>
+              <h2>Validation snapshot</h2>
+              <p>Close the loop after every change with one bench and one runtime check.</p>
+            </div>
+            <RouterLink class="button-link primary" to="/agent">Validate</RouterLink>
+          </div>
+
+          <div class="overview-check-list">
+            <div class="overview-check-item">
+              <span class="inline-status" :class="validationTone.manifest">{{ validationLabel.manifest }}</span>
+              <div>
+                <strong>Workspace manifest</strong>
+                <p>{{ validationCopy.manifest }}</p>
+              </div>
+            </div>
+            <div class="overview-check-item">
+              <span class="inline-status" :class="validationTone.runtime">{{ validationLabel.runtime }}</span>
+              <div>
+                <strong>Runtime trace</strong>
+                <p>{{ validationCopy.runtime }}</p>
+              </div>
+            </div>
+            <div class="overview-check-item">
+              <span class="inline-status" :class="validationTone.conversations">{{ validationLabel.conversations }}</span>
+              <div>
+                <strong>Traffic visibility</strong>
+                <p>{{ validationCopy.conversations }}</p>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <article class="panel">
+          <div class="section-title">
+            <div>
+              <h2>Next actions</h2>
+              <p>Jump into the parts of the runtime that operators usually touch next.</p>
+            </div>
+          </div>
+
+          <div class="overview-action-grid">
+            <RouterLink class="overview-action-card" to="/workspaces">
+              <strong>Workspaces</strong>
+              <small>Reload routing and inspect snapshots.</small>
+            </RouterLink>
+            <RouterLink class="overview-action-card" to="/providers">
+              <strong>Providers</strong>
+              <small>Check capability coverage and connectivity.</small>
+            </RouterLink>
+            <RouterLink class="overview-action-card" to="/tools">
+              <strong>Tools</strong>
+              <small>Review policy posture and exposure.</small>
+            </RouterLink>
+            <RouterLink class="overview-action-card" to="/config">
+              <strong>Config</strong>
+              <small>Apply controlled changes to runtime config.</small>
+            </RouterLink>
+          </div>
+        </article>
       </aside>
-    </div>
-
-    <div class="workbench-grid tactical-workbench">
-      <section class="panel diagnostics-panel">
-        <div class="section-title">
-          <div>
-            <p class="section-kicker">Trace</p>
-            <h2>Diagnostics ledger</h2>
-            <p>
-              {{ diagnosticEntries.length > 0 ? 'Active runtime markers from the latest telemetry pass.' : 'Awaiting runtime diagnostics from the local API.' }}
-            </p>
-          </div>
-          <RouterLink class="button-link" to="/effective-runtime">Open Effective Runtime</RouterLink>
-        </div>
-
-        <EmptyState
-          v-if="diagnosticEntries.length === 0"
-          title="No diagnostics reported"
-          detail="Additional runtime details will appear once the health endpoint returns telemetry."
-        />
-        <div v-else class="detail-list diagnostics-list">
-          <div
-            v-for="([key, value]) in diagnosticEntries"
-            :key="key"
-            class="detail-item diagnostic-item"
-          >
-            <span>{{ formatKey(String(key)) }}</span>
-            <code>{{ value }}</code>
-          </div>
-        </div>
-      </section>
-
-      <aside class="panel detail-panel session-panel">
-        <div class="section-title">
-          <div>
-            <p class="section-kicker">Watch Log</p>
-            <h2>Recent conversations</h2>
-            <p>{{ store.conversations.length }} tracked sessions in the current feed.</p>
-          </div>
-          <RouterLink class="button-link" to="/conversations">Open</RouterLink>
-        </div>
-
-        <EmptyState
-          v-if="recentConversations.length === 0"
-          title="No conversations yet"
-          detail="Messages will appear after a platform starts receiving traffic."
-        />
-        <div v-else class="table-wrap mission-table-wrap">
-          <table class="table">
-            <thead>
-              <tr>
-                <th>Platform</th>
-                <th>Session</th>
-                <th>Updated</th>
-                <th>Age</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="conversation in recentConversations" :key="conversation.id">
-                <td>{{ conversation.platform }}</td>
-                <td>
-                  <RouterLink class="session-link" :to="`/conversations/${conversation.id}`">
-                    <code>{{ conversation.sessionId }}</code>
-                  </RouterLink>
-                </td>
-                <td>{{ formatTime(conversation.updatedAt) }}</td>
-                <td>{{ formatRecency(conversation.updatedAt) }}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </aside>
-    </div>
+    </section>
   </div>
 </template>
 
@@ -275,197 +213,137 @@
 import { computed } from 'vue';
 import { RouterLink } from 'vue-router';
 import EmptyState from '../components/EmptyState.vue';
-import StatusDot from '../components/StatusDot.vue';
 import { useDashboardStore } from '../stores/dashboard';
 
-type StatusTone = 'ok' | 'warn' | 'muted' | 'error';
+type Tone = 'ok' | 'warn' | 'muted' | 'error';
 
 const store = useDashboardStore();
 
-const toneRank: Record<StatusTone, number> = {
-  error: 0,
-  warn: 1,
-  muted: 2,
-  ok: 3,
-};
+const runtimeConfig = computed(() => store.effectiveRuntimePreview?.config ?? store.config);
+const runtimeWorkingDirectory = computed(() => store.effectiveRuntimePreview?.workingDirectory ?? store.workingDirectory);
+const traceRowCount = computed(() => store.effectiveRuntimePreview?.trace.length ?? 0);
+const detectedSkills = computed(() => String(runtimeWorkingDirectory.value?.skills.length ?? 0));
+const runtimeWorkspace = computed(() => runtimeWorkingDirectory.value?.effectivePath || 'Not set');
+const runtimeAgent = computed(() => runtimeConfig.value?.agent.name || 'Unset');
+const runtimeProvider = computed(() => runtimeConfig.value?.agent.providerName || 'Unset');
+const toolPolicySummary = computed(() => {
+  const enabled = runtimeConfig.value?.agent.enabledTools.length ?? 0;
+  const disabled = runtimeConfig.value?.agent.disabledTools.length ?? 0;
+  return `${enabled} enabled · ${disabled} denied`;
+});
 
-const healthStatus = computed(() => store.health?.status ?? 'UNKNOWN');
-const healthTone = computed<StatusTone>(() => resolveTone(healthStatus.value));
-const healthBadge = computed(() => toneLabel(healthTone.value));
-const lastPulseAt = computed(() => store.lastUpdated ?? store.health?.timestamp ?? null);
-const lastPulseLabel = computed(() => (lastPulseAt.value ? formatTime(lastPulseAt.value) : 'Awaiting sync'));
-
-const componentRows = computed(() =>
+const componentAlerts = computed(() =>
   Object.entries(store.health?.components ?? {})
-    .map(([name, status]) => {
-      const tone = resolveTone(status);
-      return {
-        name,
-        status,
-        tone,
-        signal: signalCopy(tone),
-        coverage: tone === 'ok' ? 100 : tone === 'warn' ? 64 : tone === 'muted' ? 42 : 24,
-      };
-    })
-    .sort((left, right) => toneRank[left.tone] - toneRank[right.tone] || left.name.localeCompare(right.name)),
+    .filter(([, status]) => toneForStatus(status) !== 'ok')
+    .map(([name, status]) => ({
+      id: `component-${name}`,
+      title: humanize(name),
+      detail: `${status} reported by the health endpoint. Review runtime traces and related assets.`,
+      tone: toneForStatus(status),
+      badge: status,
+      action: 'Inspect',
+      to: '/logs',
+    })),
 );
 
-const diagnosticEntries = computed(() => Object.entries(store.health?.diagnostics ?? {}));
+const diagnosticAlerts = computed(() =>
+  Object.entries(store.health?.diagnostics ?? {})
+    .slice(0, 4)
+    .map(([key, value]) => ({
+      id: `diagnostic-${key}`,
+      title: humanize(key),
+      detail: String(value),
+      tone: String(value).toLowerCase().includes('missing') || String(value).toLowerCase().includes('error') ? 'warn' : 'muted',
+      badge: 'Diagnostic',
+      action: 'Review',
+      to: '/effective-runtime',
+    })),
+);
+
+const incidentItems = computed(() => [...componentAlerts.value, ...diagnosticAlerts.value].slice(0, 6));
+
 const recentConversations = computed(() =>
   [...store.conversations].sort((left, right) => right.updatedAt - left.updatedAt).slice(0, 6),
 );
-const healthyComponentCount = computed(() => componentRows.value.filter((row) => row.tone === 'ok').length);
-const attentionComponentCount = computed(() => componentRows.value.filter((row) => row.tone !== 'ok').length);
-const enabledWorkspaceCount = computed(() => store.workspaces.workspaces.filter((workspace) => workspace.enabled).length);
-const trackedConversationPlatforms = computed(() => new Set(store.conversations.map((conversation) => conversation.platform)).size);
-const toolReadyProviderCount = computed(() => store.providers.filter((provider) => provider.supportToolCalling).length);
-const visionReadyProviderCount = computed(() => store.providers.filter((provider) => provider.supportVision).length);
 
-const commandHeadline = computed(() => {
-  if (!store.health) return 'Awaiting runtime telemetry';
-  if (healthTone.value === 'ok' && attentionComponentCount.value === 0) return 'All sectors nominal';
-  if (attentionComponentCount.value > 0) {
-    return `${attentionComponentCount.value} sector${attentionComponentCount.value === 1 ? '' : 's'} need review`;
-  }
-  return 'Telemetry linked';
-});
-
-const commandDetail = computed(() => {
-  if (!store.health) return 'The board will populate after the local API responds.';
-  return `${store.runningPlatforms}/${store.platforms.length} relays online, ${store.conversations.length} tracked conversations, ${diagnosticEntries.value.length} diagnostic markers.`;
-});
-
-const pulseCaption = computed(() => {
-  if (!store.health) return 'Waiting for the first stable heartbeat from the runtime.';
-  if (attentionComponentCount.value === 0) return 'Runtime steady. All reported sectors remain within nominal bands.';
-  return 'Runtime is live with active watchpoints. Use the ledger and operator lanes for deeper inspection.';
-});
-
-const tacticalCards = computed(() => [
+const metrics = computed(() => [
   {
-    code: 'SYS-01',
-    label: 'Runtime sanctum',
-    value: healthStatus.value,
-    badge: healthBadge.value,
-    detail: store.health
-      ? `Uptime ${formatDuration(store.health.uptimeMillis)} across ${componentRows.value.length} reported sectors.`
-      : 'Awaiting local API telemetry.',
-    tone: healthTone.value,
-    to: '/effective-runtime',
-    linkLabel: 'Runtime',
+    label: 'Overall health',
+    value: store.health?.status ?? 'Unknown',
+    detail: store.health ? `${componentAlerts.value.length} components need review right now.` : 'Awaiting runtime telemetry.',
   },
   {
-    code: 'PLT-02',
-    label: 'Relay coverage',
-    value: `${store.runningPlatforms}/${store.platforms.length}`,
-    badge: relayBadge(store.runningPlatforms, store.platforms.length),
-    detail: `${store.enabledPlatforms} enabled lanes prepared for incoming traffic.`,
-    tone: relayTone(store.runningPlatforms, store.platforms.length),
-    to: '/platforms',
-    linkLabel: 'Platforms',
+    label: 'Running platforms',
+    value: `${store.runningPlatforms}/${store.platforms.length || 0}`,
+    detail: `${store.enabledPlatforms} enabled lanes ready to receive traffic.`,
   },
   {
-    code: 'PRV-03',
-    label: 'Provider matrix',
+    label: 'Tracked sessions',
+    value: `${store.conversations.length}`,
+    detail: `${new Set(store.conversations.map((conversation) => conversation.platform)).size} platforms represented in the latest feed.`,
+  },
+  {
+    label: 'Providers',
     value: `${store.providers.length}`,
-    badge: `${toolReadyProviderCount.value} tool-ready`,
-    detail: `${visionReadyProviderCount.value} vision-ready providers within the current registry.`,
-    tone: providerTone(store.providers.length, toolReadyProviderCount.value, visionReadyProviderCount.value),
-    to: '/providers',
-    linkLabel: 'Providers',
+    detail: `${store.providers.filter((provider) => provider.supportToolCalling).length} tool-ready and ${store.providers.filter((provider) => provider.supportVision).length} vision-ready.`,
   },
   {
-    code: 'PLG-04',
-    label: 'Plugin doctrine',
-    value: `${store.enabledPlugins}/${store.plugins.plugins.length}`,
-    badge: `${store.plugins.extensions.length} ext`,
-    detail: `${store.plugins.plugins.length} plugin packages mapped into the current shell.`,
-    tone: pluginTone(store.enabledPlugins, store.plugins.plugins.length),
-    to: '/plugins',
-    linkLabel: 'Plugins',
+    label: 'Trace rows',
+    value: `${traceRowCount.value}`,
+    detail: 'Effective runtime rows currently available for inspection.',
+  },
+  {
+    label: 'Plugins enabled',
+    value: `${store.enabledPlugins}/${store.plugins.plugins.length || 0}`,
+    detail: `${store.plugins.extensions.length} extensions currently mapped into the runtime.`,
   },
 ]);
 
-const directiveLinks = computed(() => [
-  {
-    code: 'WS',
-    title: 'Workspace diagnostics',
-    detail: `${enabledWorkspaceCount.value}/${store.workspaces.workspaces.length} routing cells enabled`,
-    value: `${store.workspaces.workspaces.length}`,
-    to: '/workspaces',
-  },
-  {
-    code: 'CN',
-    title: 'Conversation watch',
-    detail: `${store.conversations.length} live sessions under observation`,
-    value: `${trackedConversationPlatforms.value} ch`,
-    to: '/conversations',
-  },
-  {
-    code: 'RT',
-    title: 'Effective runtime',
-    detail: `${diagnosticEntries.value.length} trace markers available`,
-    value: diagnosticEntries.value.length > 0 ? 'Trace' : 'Open',
-    to: '/effective-runtime',
-  },
-  {
-    code: 'CF',
-    title: 'Config surface',
-    detail: `${store.platforms.length + store.providers.length} runtime endpoints cataloged`,
-    value: 'Review',
-    to: '/config',
-  },
-]);
+const validationTone = computed(() => ({
+  manifest: runtimeWorkingDirectory.value?.manifestFound ? 'ok' : 'warn',
+  runtime: traceRowCount.value > 0 ? 'ok' : 'muted',
+  conversations: recentConversations.value.length > 0 ? 'ok' : 'muted',
+}));
 
-function resolveTone(value: string | undefined): StatusTone {
+const validationLabel = computed(() => ({
+  manifest: runtimeWorkingDirectory.value?.manifestFound ? 'Ready' : 'Missing',
+  runtime: traceRowCount.value > 0 ? 'Trace loaded' : 'No trace',
+  conversations: recentConversations.value.length > 0 ? 'Visible' : 'No traffic',
+}));
+
+const validationCopy = computed(() => ({
+  manifest: runtimeWorkingDirectory.value?.manifestFound
+    ? 'Local workspace inputs were discovered and merged into the runtime preview.'
+    : 'No runtime workdir manifest is currently contributing to the merged result.',
+  runtime: traceRowCount.value > 0
+    ? 'Effective runtime data is available to validate before saving config changes.'
+    : 'Refresh config surfaces to populate the layered runtime trace.',
+  conversations: recentConversations.value.length > 0
+    ? 'Recent traffic is available for replay and post-change validation.'
+    : 'No recent sessions yet. Use the agent bench when validating changes.',
+}));
+
+function toneForStatus(value: string | undefined): Tone {
   const normalized = String(value ?? '').trim().toUpperCase();
   if (!normalized || normalized === 'UNKNOWN') return 'muted';
   if (['UP', 'OK', 'HEALTHY', 'RUNNING', 'ENABLED', 'READY'].some((token) => normalized.includes(token))) return 'ok';
-  if (['WARN', 'DEGRADED', 'PARTIAL', 'STARTING'].some((token) => normalized.includes(token))) return 'warn';
+  if (['WARN', 'DEGRADED', 'PARTIAL', 'STARTING', 'MISSING'].some((token) => normalized.includes(token))) return 'warn';
   if (['IDLE', 'PENDING', 'DISABLED', 'STOPPED'].some((token) => normalized.includes(token))) return 'muted';
   return 'error';
 }
 
-function signalCopy(tone: StatusTone) {
-  if (tone === 'ok') return 'Nominal alignment';
-  if (tone === 'warn') return 'Observe drift';
-  if (tone === 'muted') return 'Standby telemetry';
-  return 'Escalate review';
+function recencyTone(value: number): Tone {
+  const diff = Date.now() - value;
+  if (diff < 30 * 60 * 1000) return 'ok';
+  if (diff < 12 * 60 * 60 * 1000) return 'warn';
+  return 'muted';
 }
 
-function toneLabel(tone: StatusTone) {
-  if (tone === 'ok') return 'Nominal';
-  if (tone === 'warn') return 'Monitor';
-  if (tone === 'muted') return 'Standby';
-  return 'Alert';
-}
-
-function relayTone(running: number, total: number): StatusTone {
-  if (total === 0) return 'muted';
-  if (running === total) return 'ok';
-  if (running > 0) return 'warn';
-  return 'error';
-}
-
-function relayBadge(running: number, total: number) {
-  if (total === 0) return 'Standby';
-  if (running === total) return 'Full relay';
-  if (running > 0) return 'Partial relay';
-  return 'Offline';
-}
-
-function providerTone(total: number, toolReady: number, visionReady: number): StatusTone {
-  if (total === 0) return 'muted';
-  if (toolReady === total && visionReady > 0) return 'ok';
-  if (toolReady > 0 || visionReady > 0) return 'warn';
-  return 'error';
-}
-
-function pluginTone(enabled: number, total: number): StatusTone {
-  if (total === 0) return 'muted';
-  if (enabled === total) return 'ok';
-  if (enabled > 0) return 'warn';
-  return 'error';
+function recencyLabel(value: number) {
+  const diff = Date.now() - value;
+  if (diff < 30 * 60 * 1000) return 'Fresh';
+  if (diff < 12 * 60 * 60 * 1000) return 'Warm';
+  return 'Stale';
 }
 
 function formatTime(value: number) {
@@ -477,667 +355,193 @@ function formatTime(value: number) {
   }).format(value);
 }
 
-function formatKey(value: string) {
-  return value.replace(/([A-Z])/g, ' $1').replace(/^./, (first) => first.toUpperCase());
-}
-
-function formatDuration(value: number) {
-  const totalSeconds = Math.floor(value / 1000);
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
-  if (hours > 0) return `${hours}h ${minutes}m`;
-  if (minutes > 0) return `${minutes}m ${seconds}s`;
-  return `${seconds}s`;
-}
-
-function formatRecency(value: number) {
-  const diff = Math.max(0, Date.now() - value);
-  const minutes = Math.floor(diff / 60000);
-  if (minutes < 1) return 'just now';
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  return `${days}d ago`;
+function humanize(value: string) {
+  return value.replace(/([A-Z])/g, ' $1').replace(/[-_]/g, ' ').replace(/^./, (first) => first.toUpperCase());
 }
 </script>
 
 <style scoped>
-.overview-command {
+.overview-page {
   display: grid;
-  gap: 14px;
+  gap: 24px;
 }
 
-.overview-command :deep(.inline-status) {
-  border-color: #ddd2c0;
-  background: #f6f0e3;
-  color: #516072;
-}
-
-.overview-command :deep(.inline-status.ok) {
-  border-color: #b6d7c2;
-  background: #edf7ef;
-  color: #1e6d40;
-}
-
-.overview-command :deep(.inline-status.warn) {
-  border-color: #ebcb90;
-  background: #fff6e2;
-  color: #996208;
-}
-
-.overview-command :deep(.inline-status.error) {
-  border-color: #e8b6b0;
-  background: #fff0ee;
-  color: #ae4237;
-}
-
-.overview-command :deep(.inline-status.muted) {
-  border-color: #ddd2c0;
-  background: #f5f1e8;
-  color: #677181;
-}
-
-.overview-command :deep(.empty-state) {
-  border-color: #e3d8c8;
-  background: #fffdf8;
-}
-
-.command-deck {
-  padding: 0;
-  overflow: hidden;
-  border-color: #daccb8;
-  background:
-    linear-gradient(90deg, rgba(25, 58, 100, 0.06) 0, rgba(25, 58, 100, 0.06) 1px, transparent 1px, transparent 24px),
-    linear-gradient(180deg, #fffdf7 0%, #f4efe2 100%);
-}
-
-.command-shell {
-  position: relative;
-  padding: 20px;
-}
-
-.command-shell::after {
-  content: '';
-  position: absolute;
-  inset: auto 20px 20px auto;
-  width: 112px;
-  height: 112px;
-  border: 1px solid rgba(28, 52, 80, 0.16);
-  opacity: 0.4;
-  pointer-events: none;
-}
-
-.command-band {
+.overview-hero {
   display: flex;
   justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 20px;
-  color: #8d7558;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.18em;
+  gap: 24px;
+  align-items: end;
+}
+
+.overview-hero-copy {
+  max-width: 760px;
+}
+
+.overview-eyebrow,
+.overview-metric-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--weak);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
-.band-label,
-.band-index {
-  display: inline-flex;
-  align-items: center;
-  min-height: 28px;
-  padding: 0 10px;
-  border: 1px solid rgba(191, 173, 140, 0.55);
-  background: rgba(255, 250, 240, 0.92);
+.overview-hero h1 {
+  margin: 10px 0 12px;
+  font-size: clamp(2.4rem, 4vw, 4rem);
+  line-height: 1;
+  letter-spacing: -0.05em;
+  color: var(--text-strong);
 }
 
-.command-head {
+.overview-hero p {
+  margin: 0;
+  max-width: 680px;
+  color: var(--muted);
+  font-size: 1rem;
+  line-height: 1.65;
+}
+
+.overview-hero-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.overview-metric-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.55fr) minmax(280px, 0.92fr);
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.overview-metric-card {
+  display: grid;
+  gap: 10px;
+  min-height: 148px;
+}
+
+.overview-metric-card strong {
+  font-size: 2rem;
+  line-height: 1;
+  letter-spacing: -0.06em;
+  color: var(--text-strong);
+}
+
+.overview-metric-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+
+.overview-workbench {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) 360px;
   gap: 18px;
   align-items: start;
 }
 
-.command-side {
+.overview-primary,
+.overview-secondary {
+  display: grid;
+  gap: 18px;
+}
+
+.overview-incident-list,
+.overview-action-grid,
+.overview-check-list {
   display: grid;
   gap: 12px;
 }
 
-.command-copy {
-  display: grid;
-  align-content: start;
-}
-
-.command-identity {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 12px;
-  align-items: center;
-  padding: 14px;
-  border: 1px solid #d9ccb9;
-  background: linear-gradient(180deg, rgba(255, 252, 246, 0.98), rgba(246, 240, 229, 0.96));
-}
-
-.command-identity-mark {
-  display: grid;
-  place-items: center;
-  width: 72px;
-  height: 72px;
-  overflow: hidden;
-  border: 1px solid rgba(31, 58, 92, 0.18);
-  border-radius: 18px;
-  background: rgba(255, 251, 245, 0.94);
-  box-shadow: 0 10px 22px rgba(83, 67, 40, 0.14);
-}
-
-.command-identity-mark img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.command-identity-copy {
-  display: grid;
-  gap: 4px;
-}
-
-.command-identity-copy span,
-.command-tag {
-  color: #8f7657;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-}
-
-.command-identity-copy strong {
-  color: #17314c;
-  font-size: 18px;
-  line-height: 1.1;
-  text-transform: uppercase;
-}
-
-.command-identity-copy p {
-  margin: 0;
-  color: #5d6775;
-  font-size: 12px;
-  line-height: 1.6;
-}
-
-.command-tag-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.command-tag {
-  display: inline-flex;
-  align-items: center;
-  min-height: 28px;
-  padding: 0 10px;
-  border: 1px solid rgba(191, 173, 140, 0.55);
-  background: rgba(255, 250, 240, 0.9);
-}
-
-.command-copy h1,
-.section-title h2,
-.card-row strong,
-.meta-cell strong,
-.pulse-item strong {
-  font-family: "Bahnschrift", "DIN Alternate", "Segoe UI", "PingFang SC", sans-serif;
-}
-
-.command-kicker,
-.section-kicker,
-.card-label,
-.card-code {
-  margin: 0;
-  color: #8f7657;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-}
-
-.command-copy h1 {
-  margin: 0;
-  color: #172f4d;
-  font-size: clamp(32px, 4vw, 46px);
-  line-height: 0.94;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.command-copy p:last-child {
-  max-width: 720px;
-  margin: 12px 0 0;
-  color: #566070;
-  font-size: 14px;
-  line-height: 1.7;
-}
-
-.command-status-block {
+.overview-incident-item,
+.overview-action-card {
   display: grid;
   gap: 8px;
   padding: 16px;
-  border: 1px solid #d9ccb9;
-  background: linear-gradient(180deg, rgba(255, 250, 241, 0.96), rgba(249, 245, 236, 0.96));
-}
-
-.command-persona {
-  position: relative;
-  margin: 0;
-  display: grid;
-  gap: 0;
-  min-height: 0;
-  padding: 14px;
-  overflow: hidden;
-  border: 1px solid #d9ccb9;
-  background: linear-gradient(180deg, rgba(240, 246, 243, 0.92) 0%, rgba(230, 239, 234, 0.92) 100%);
-}
-
-.command-persona::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background:
-    linear-gradient(90deg, rgba(30, 76, 130, 0.06) 0, rgba(30, 76, 130, 0.06) 1px, transparent 1px, transparent 18px),
-    linear-gradient(180deg, rgba(30, 76, 130, 0.04) 0, rgba(30, 76, 130, 0.04) 1px, transparent 1px, transparent 18px);
-  opacity: 0.7;
-}
-
-.command-persona figcaption {
-  position: relative;
-  z-index: 1;
-  display: grid;
-  gap: 4px;
-}
-
-.command-persona figcaption span {
-  color: #567866;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-}
-
-.command-persona figcaption strong {
-  color: #17314c;
-  font-size: 16px;
-  line-height: 1.1;
-  text-transform: uppercase;
-}
-
-.command-status-block strong {
-  color: #172f4d;
-  font-size: 22px;
-  line-height: 1.1;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.command-status-block p {
-  margin: 0;
-  color: #5e6979;
-  font-size: 13px;
-  line-height: 1.6;
-}
-
-.command-meta {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
-  margin-top: 18px;
-}
-
-.meta-cell {
-  display: grid;
-  gap: 5px;
-  padding: 12px;
-  border: 1px solid #dfd3c1;
-  background: rgba(255, 252, 246, 0.92);
-}
-
-.meta-cell span,
-.pulse-item span {
-  color: #748193;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-.meta-cell strong {
-  color: #1d324d;
-  font-size: 18px;
-  line-height: 1.2;
-}
-
-.command-rail {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 18px;
-}
-
-.command-rail :deep(.button-link) {
-  border-color: #d2c5b2;
-  background: rgba(255, 251, 244, 0.96);
-}
-
-.command-rail :deep(.button-link.primary) {
-  border-color: #1d4f87;
-  background: #1d4f87;
-}
-
-.tactical-grid {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-
-.tactical-card {
-  position: relative;
-  display: grid;
-  gap: 12px;
-  min-height: 170px;
-  overflow: hidden;
-  border-color: #ded2bf;
-  background: linear-gradient(180deg, #fffdfa 0%, #f8f2e7 100%);
-}
-
-.tactical-card::after {
-  content: '';
-  position: absolute;
-  inset: 0 0 auto auto;
-  width: 72px;
-  height: 72px;
-  border-left: 1px solid rgba(23, 47, 77, 0.12);
-  border-bottom: 1px solid rgba(23, 47, 77, 0.12);
-  opacity: 0.7;
-}
-
-.tactical-card.tone-ok {
-  border-top: 3px solid #4e8e68;
-}
-
-.tactical-card.tone-warn {
-  border-top: 3px solid #d1a24e;
-}
-
-.tactical-card.tone-muted {
-  border-top: 3px solid #98a3b2;
-}
-
-.tactical-card.tone-error {
-  border-top: 3px solid #c96b62;
-}
-
-.card-row {
-  display: flex;
-  justify-content: space-between;
-  gap: 10px;
-  align-items: flex-start;
-}
-
-.card-row strong {
-  display: block;
-  margin-top: 8px;
-  color: #182f4d;
-  font-size: 30px;
-  line-height: 1;
-  text-transform: uppercase;
-  overflow-wrap: anywhere;
-}
-
-.card-detail {
-  margin: 0;
-  color: #5d6775;
-  font-size: 13px;
-  line-height: 1.65;
-}
-
-.card-link,
-.session-link {
-  color: #174d87;
-}
-
-.card-link {
-  margin-top: auto;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.overview-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.3fr) 336px;
-  gap: 14px;
-  align-items: start;
-}
-
-.sector-panel,
-.pulse-panel,
-.directive-panel,
-.diagnostics-panel,
-.session-panel {
-  border-color: #ded3c1;
-  background: linear-gradient(180deg, #fffdfa 0%, #f8f4eb 100%);
-}
-
-.section-title p {
-  max-width: 640px;
-}
-
-.sector-list {
-  display: grid;
-  gap: 10px;
-}
-
-.sector-row {
-  display: grid;
-  gap: 10px;
-  padding: 12px;
-  border: 1px solid #e5dac9;
-  background: rgba(255, 252, 246, 0.94);
-}
-
-.sector-row.tone-ok {
-  border-left: 3px solid #4e8e68;
-}
-
-.sector-row.tone-warn {
-  border-left: 3px solid #d1a24e;
-}
-
-.sector-row.tone-muted {
-  border-left: 3px solid #97a1af;
-}
-
-.sector-row.tone-error {
-  border-left: 3px solid #c96b62;
-}
-
-.sector-main {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  align-items: flex-start;
-}
-
-.sector-label strong,
-.directive-copy strong {
-  display: block;
-  color: #1d324d;
-  font-size: 14px;
-  line-height: 1.3;
-}
-
-.sector-label span,
-.directive-copy span,
-.pulse-item small {
-  color: #667180;
-  font-size: 12px;
-  line-height: 1.5;
-}
-
-.sector-bar {
-  height: 7px;
-  overflow: hidden;
-  background: #e8e0d3;
-}
-
-.sector-bar span {
-  display: block;
-  height: 100%;
-  background: linear-gradient(90deg, #d0a55d 0%, #1b4c82 100%);
-}
-
-.overview-side {
-  display: grid;
-  gap: 14px;
-}
-
-.pulse-stack,
-.directive-list {
-  display: grid;
-  gap: 10px;
-}
-
-.pulse-item {
-  display: grid;
-  gap: 4px;
-  padding: 12px;
-  border: 1px solid #e4d8c7;
-  background: rgba(255, 252, 247, 0.95);
-}
-
-.pulse-item strong {
-  color: #172f4d;
-  font-size: 28px;
-  line-height: 1;
-}
-
-.directive-link {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  gap: 12px;
-  align-items: center;
-  padding: 12px;
-  border: 1px solid #ddd1be;
-  background: rgba(255, 252, 247, 0.95);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--surface-soft);
   color: inherit;
-  transition: border-color 0.2s ease, transform 0.2s ease;
+  transition:
+    border-color 160ms ease,
+    background 160ms ease,
+    transform 160ms ease;
 }
 
-.directive-link:hover {
-  border-color: #bfa27b;
+.overview-incident-item:hover,
+.overview-action-card:hover {
+  border-color: var(--line-strong);
+  background: var(--surface);
   transform: translateY(-1px);
 }
 
-.directive-code {
-  color: #a28157;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
+.overview-incident-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
 }
 
-.directive-value {
-  color: #1d4f87;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+.overview-incident-action {
+  color: var(--weak);
+  font-size: 0.8rem;
+  font-weight: 600;
 }
 
-.tactical-workbench {
-  gap: 14px;
+.overview-incident-item strong,
+.overview-action-card strong,
+.overview-check-item strong {
+  color: var(--text-strong);
+  font-size: 0.98rem;
 }
 
-.diagnostics-list {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+.overview-incident-item p,
+.overview-action-card small,
+.overview-check-item p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
 }
 
-.diagnostic-item {
-  min-height: 88px;
-  padding: 12px;
-  border: 1px solid #e4d8c8;
-  background: rgba(255, 252, 246, 0.96);
+.overview-check-item {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 12px;
+  align-items: start;
 }
 
-.diagnostic-item code {
-  font-size: 12px;
-  line-height: 1.6;
-}
-
-.mission-table-wrap {
-  border-color: #e0d4c3;
-}
-
-.session-panel :deep(.table) {
-  min-width: 0;
-  background: transparent;
-}
-
-.session-panel :deep(.table th),
-.session-panel :deep(.table td) {
-  border-bottom-color: #e6dccd;
-  background: rgba(255, 252, 247, 0.6);
-}
-
-@media (max-width: 1180px) {
-  .tactical-grid,
-  .command-meta {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+@media (max-width: 1240px) {
+  .overview-metric-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
-  .overview-grid,
-  .tactical-workbench {
+  .overview-workbench {
     grid-template-columns: 1fr;
-  }
-
-  .overview-side {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .session-panel {
-    position: static;
   }
 }
 
 @media (max-width: 900px) {
-  .command-head,
-  .overview-side,
-  .diagnostics-list {
-    grid-template-columns: 1fr;
-  }
-
-  .command-shell {
-    padding: 16px;
-  }
-
-  .command-copy h1 {
-    font-size: 30px;
-  }
-
-  .command-identity {
-    grid-template-columns: 1fr;
-  }
-}
-
-@media (max-width: 640px) {
-  .tactical-grid,
-  .command-meta {
-    grid-template-columns: 1fr;
-  }
-
-  .command-band,
-  .command-rail {
+  .overview-hero {
     flex-direction: column;
     align-items: stretch;
   }
 
-  .directive-link {
+  .overview-hero-actions {
+    justify-content: flex-start;
+  }
+
+  .overview-metric-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .overview-metric-grid {
     grid-template-columns: 1fr;
   }
 }

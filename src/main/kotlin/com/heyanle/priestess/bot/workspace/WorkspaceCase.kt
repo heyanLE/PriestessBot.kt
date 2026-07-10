@@ -8,8 +8,8 @@ class WorkspaceCase(
 ) {
     fun list(): List<WorkspaceStatus> = controller.list()
     fun get(id: String): WorkspaceSnapshot? = controller.get(id)
-    fun resolve(context: WorkspaceResolutionContext = WorkspaceResolutionContext()): WorkspaceResolution {
-        return controller.resolve(context)
+    fun prepare(workspaceDir: String, reason: String): WorkspaceResolution {
+        return controller.prepare(workspaceDir, reason)
     }
     fun reload(id: String): WorkspaceReloadResult = controller.reload(id)
     fun reloadAll(): List<WorkspaceReloadResult> = controller.reloadAll()

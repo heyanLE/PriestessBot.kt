@@ -18,20 +18,15 @@ interface Stage {
 }
 
 /**
- * Execution order for the v1 pipeline stages.
+ * Execution order for the pipeline stages.
  */
 enum class StageOrder(val level: Int) {
     WAKING_CHECK(1),
     WHITELIST_CHECK(2),
-    SESSION_STATUS(3),
-    RATE_LIMIT(4),
-    CONTENT_SAFETY(5),
-    PRE_PROCESS(6),
-    PROCESS(7),
-    RESULT_DECORATE(8),
-    RESPOND(9);
-
-    companion object {
-        val sorted: List<StageOrder> = entries.sortedBy { it.level }
-    }
+    RATE_LIMIT(3),
+    PREPARE_WORKSPACE(4),
+    PRE_PROCESS(5),
+    PROCESS(6),
+    RESULT_DECORATE(7),
+    RESPOND(8);
 }

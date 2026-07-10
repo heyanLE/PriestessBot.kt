@@ -14,10 +14,10 @@ class ConfigBackedWorkspaceConfigSource(
 
     override fun load(): WorkspaceConfigSet {
         val config = configProvider()
-        if (config.workspaces.isNotEmpty()) {
-            return WorkspaceConfigSet(config.workspaces)
-        }
-        return WorkspaceConfigSet(listOf(defaultWorkspaceFrom(config)))
+        return WorkspaceConfigSet(
+            defaultWorkspaceDir = config.workspace.defaultDir,
+            defaults = WorkspaceRuntimeDefaults(defaultWorkspaceFrom(config)),
+        )
     }
 
     private fun defaultWorkspaceFrom(config: PriestessConfig): WorkspaceConfig {

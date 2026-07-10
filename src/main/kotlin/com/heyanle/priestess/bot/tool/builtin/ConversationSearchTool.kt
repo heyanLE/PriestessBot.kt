@@ -12,9 +12,10 @@ import com.heyanle.priestess.bot.tool.ToolParameters
 import com.heyanle.priestess.bot.tool.ToolResult
 import com.heyanle.priestess.bot.tool.ToolRiskLevel
 import com.heyanle.priestess.bot.tool.ToolSchema
-import kotlinx.serialization.Serializable
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 
 class ConversationSearchTool(
     private val conversationCaseProvider: () -> ConversationCase,
@@ -69,40 +70,32 @@ class ConversationSearchTool(
             limit = args["limit"]?.toIntOrNull()?.coerceIn(1, 50) ?: 10,
         )
         val results = conversationCaseProvider().searchMessages(query)
-        return ToolResult.success(json.encodeToString(ConversationSearchResponse(results.map { it.toDto() })))
+        return ToolResult.success(
+            buildJsonObject {
+                put(
+                    "results",
+                    buildJsonArray {
+                        results.forEach { result ->
+                            add(
+                                buildJsonObject {
+                                    put("conversationId", result.conversation.id)
+                                    put("platform", result.conversation.platform)
+                                    put("sessionId", result.conversation.sessionId)
+                                    put("messageId", result.message.id)
+                                    put("role", result.message.role.label)
+                                    result.message.content?.let { put("content", it) }
+                                    put("snippet", result.snippet)
+                                    put("createdAt", result.message.createdAt)
+                                },
+                            )
+                        }
+                    },
+                )
+            }.toString(),
+        )
     }
 
     private fun parseRole(value: String): MessageRole? {
         return MessageRole.entries.firstOrNull { it.label.equals(value, ignoreCase = true) || it.name.equals(value, ignoreCase = true) }
     }
-
-    private fun ConversationSearchResult.toDto(): ConversationSearchItem {
-        return ConversationSearchItem(
-            conversationId = conversation.id,
-            platform = conversation.platform,
-            sessionId = conversation.sessionId,
-            messageId = message.id,
-            role = message.role.label,
-            content = message.content,
-            snippet = snippet,
-            createdAt = message.createdAt,
-        )
-    }
 }
-
-@Serializable
-data class ConversationSearchResponse(
-    val results: List<ConversationSearchItem>,
-)
-
-@Serializable
-data class ConversationSearchItem(
-    val conversationId: String,
-    val platform: String,
-    val sessionId: String,
-    val messageId: String,
-    val role: String,
-    val content: String?,
-    val snippet: String,
-    val createdAt: Long,
-)

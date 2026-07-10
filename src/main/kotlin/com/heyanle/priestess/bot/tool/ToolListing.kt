@@ -57,7 +57,7 @@ object ToolListing {
             riskLevel = schema.riskLevel,
             requiredCapabilities = schema.requiredCapabilities,
             defaultEnabled = schema.defaultEnabled,
-            effectiveEnabled = schema.defaultEnabled && statusReason == null,
+            effectiveEnabled = statusReason == null,
             auditLog = schema.auditLog,
             statusReason = statusReason,
         )

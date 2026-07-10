@@ -197,6 +197,25 @@ class ConfigReloadTest {
     }
 
     @Test
+    fun `workspace default dir publishes and honors environment override`() {
+        val path = Files.createTempDirectory("priestess-config-workspace-dir").resolve("config.json")
+        val fileConfig = PriestessConfig(
+            workspace = WorkspaceRuntimeConfig(defaultDir = "/file/workspace"),
+        )
+        Files.writeString(path, json.encodeToString(fileConfig))
+
+        val controller = ConfigController(
+            path = path.toString(),
+            envProvider = mapEnv(
+                "PRIESTESS_WORKSPACE_DEFAULT_DIR" to "/env/workspace",
+            ),
+        )
+
+        assertEquals("/env/workspace", controller.current().workspace.defaultDir)
+        assertEquals("/env/workspace", controller.workspaceRuntimeConfigFlow.value.defaultDir)
+    }
+
+    @Test
     fun `persisted replacement creates timestamped backup and restore publishes it`() {
         val path = Files.createTempDirectory("priestess-config-backup").resolve("config.json")
         val original = PriestessConfig(

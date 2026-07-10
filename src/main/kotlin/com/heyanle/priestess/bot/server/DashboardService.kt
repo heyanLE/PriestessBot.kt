@@ -67,6 +67,140 @@ class DashboardService(
 
     fun restoreConfigBackup(id: String): PriestessConfig = configCase.restoreBackup(id)
 
+    fun databaseConfigLayer(): DatabaseConfigLayerResponse {
+        return DatabaseConfigLayerResponse(
+            config = configCase.current(),
+            diagnostics = listOf("Using in-memory config (no database config layer active)"),
+        )
+    }
+
+    fun environmentOverrideSummary(): EnvironmentOverrideSummaryResponse {
+        val envVarDefinitions = listOf(
+            Triple("PRIESTESS_SERVER_ENABLED", "server.enabled", false),
+            Triple("PRIESTESS_SERVER_HOST", "server.host", false),
+            Triple("PRIESTESS_SERVER_PORT", "server.port", false),
+            Triple("PRIESTESS_SERVER_CORS_ENABLED", "server.corsEnabled", false),
+            Triple("PRIESTESS_CONFIG_WATCH_ENABLED", "server.configWatchEnabled", false),
+            Triple("PRIESTESS_CONFIG_WATCH_INTERVAL_MILLIS", "server.configWatchIntervalMillis", false),
+            Triple("PRIESTESS_SERVER_API_TOKEN", "server.apiToken", true),
+            Triple("PRIESTESS_DATABASE_PATH", "database.path", false),
+            Triple("PRIESTESS_PLUGINS_ENABLED", "plugins.enabled", false),
+            Triple("PRIESTESS_PLUGINS_DIRECTORY", "plugins.directory", false),
+            Triple("PRIESTESS_PLUGINS_AUTO_DISCOVER", "plugins.autoDiscover", false),
+            Triple("PRIESTESS_WORKSPACE_DEFAULT_DIR", "workspace.defaultDir", false),
+        )
+        val overrides = envVarDefinitions.mapNotNull { (envKey, path, sensitive) ->
+            val value = System.getenv(envKey)?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+            EnvironmentOverrideSummaryDto(
+                path = path,
+                envKey = envKey,
+                summary = if (sensitive) "***" else value,
+                sensitive = sensitive,
+            )
+        }
+        return EnvironmentOverrideSummaryResponse(overrides = overrides)
+    }
+
+    fun workingDirectorySummary(): WorkingDirectorySummaryResponse {
+        val config = configCase.current()
+        val configuredPath = config.workspace.defaultDir
+        val effectivePath = configuredPath.ifBlank { System.getProperty("user.dir") ?: "." }
+        val dir = java.io.File(effectivePath)
+        val exists = dir.exists() && dir.isDirectory
+
+        val agents = mutableListOf<WorkingDirectoryAgentDto>()
+        val skills = mutableListOf<WorkingDirectorySkillDto>()
+        val diagnostics = mutableListOf<String>()
+
+        if (exists) {
+            val agentsDir = java.io.File(dir, "agents")
+            if (agentsDir.exists() && agentsDir.isDirectory) {
+                agentsDir.listFiles()?.filter { it.isFile && it.extension == "md" }?.forEach { file ->
+                    agents.add(WorkingDirectoryAgentDto(name = file.nameWithoutExtension, filePath = file.absolutePath))
+                }
+            }
+
+            val skillsDir = java.io.File(dir, "skills")
+            if (skillsDir.exists() && skillsDir.isDirectory) {
+                skillsDir.listFiles()?.filter { it.isDirectory }?.forEach { skillDir ->
+                    val markdownFile = java.io.File(skillDir, "skill.md")
+                    val metadataFile = java.io.File(skillDir, "metadata.json")
+                    skills.add(
+                        WorkingDirectorySkillDto(
+                            name = skillDir.name,
+                            directoryPath = skillDir.absolutePath,
+                            markdownPath = markdownFile.absolutePath,
+                            metadataPath = metadataFile.takeIf { it.exists() }?.absolutePath,
+                            enabled = true,
+                        ),
+                    )
+                }
+            }
+        } else {
+            diagnostics.add("Working directory does not exist: $effectivePath")
+        }
+
+        return WorkingDirectorySummaryResponse(
+            configuredPath = configuredPath,
+            effectivePath = effectivePath,
+            valid = configuredPath.isNotBlank() && exists,
+            exists = exists,
+            agents = agents,
+            skills = skills,
+            diagnostics = diagnostics,
+            lastLoadedAt = System.currentTimeMillis(),
+        )
+    }
+
+    fun updateWorkingDirectory(request: WorkingDirectoryUpdateRequest): WorkingDirectorySummaryResponse {
+        configCase.update { current ->
+            current.copy(workspace = current.workspace.copy(defaultDir = request.path))
+        }.also { configCase.save(it) }
+        return workingDirectorySummary()
+    }
+
+    fun effectiveRuntimePreview(request: EffectiveRuntimePreviewRequest): EffectiveRuntimePreviewResponse {
+        val config = configCase.current()
+        val workdirPath = request.workdirPath ?: config.workspace.defaultDir
+
+        val workingDir = if (request.workdirPath != null) {
+            val dir = java.io.File(request.workdirPath)
+            val exists = dir.exists() && dir.isDirectory
+            WorkingDirectorySummaryResponse(
+                configuredPath = request.workdirPath,
+                effectivePath = request.workdirPath,
+                valid = exists,
+                exists = exists,
+                diagnostics = if (!exists) listOf("Directory does not exist: ${request.workdirPath}") else emptyList(),
+            )
+        } else {
+            workingDirectorySummary()
+        }
+
+        val memoryPolicy = com.heyanle.priestess.bot.workspace.WorkspaceMemoryPolicyConfig()
+
+        val trace = mutableListOf<EffectiveValueTraceDto>(
+            EffectiveValueTraceDto(
+                path = "config",
+                summary = "Loaded from ${configCase.configPath()}",
+                source = "file",
+            ),
+        )
+        if (request.agent != null) {
+            trace.add(EffectiveValueTraceDto(path = "agent", summary = "Preview agent: ${request.agent.name}", source = "preview"))
+        }
+        if (request.providerName != null) {
+            trace.add(EffectiveValueTraceDto(path = "provider", summary = "Preview provider: ${request.providerName}", source = "preview"))
+        }
+
+        return EffectiveRuntimePreviewResponse(
+            config = if (request.agent != null) config.copy(agent = request.agent) else config,
+            workingDirectory = workingDir,
+            memoryPolicy = memoryPolicy,
+            trace = trace,
+        )
+    }
+
     fun platforms(): List<PlatformStatusDto> {
         val running = platformCase.runningPlatformNames()
         return configCase.current().platforms.map { cfg ->
@@ -396,7 +530,7 @@ class DashboardService(
             platform = null,
             session = null,
             messages = mutableListOf(ConversationMessage.user(request.message)),
-            metadata = mapOf("source" to "dashboard", "workspace_id" to workspaceId) + (injection?.metadata ?: emptyMap()),
+            metadata = mapOf("workspaceId" to workspaceId) + (injection?.metadata ?: emptyMap()),
         )
         val hooks = object : AgentHooks {
             override suspend fun onAgentBegin(context: AgentContext) {

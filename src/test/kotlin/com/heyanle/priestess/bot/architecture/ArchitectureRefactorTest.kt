@@ -59,6 +59,16 @@ import com.heyanle.priestess.bot.tool.ToolCase
 import com.heyanle.priestess.bot.tool.ToolController
 import com.heyanle.priestess.bot.tool.ToolResult
 import com.heyanle.priestess.bot.tool.ToolSchema
+import com.heyanle.priestess.bot.workspace.WorkspaceCase
+import com.heyanle.priestess.bot.workspace.ConfigBackedWorkspaceConfigSource
+import com.heyanle.priestess.bot.workspace.WorkspaceConfig
+import com.heyanle.priestess.bot.workspace.WorkspaceConfigSet
+import com.heyanle.priestess.bot.workspace.WorkspaceConfigSource
+import com.heyanle.priestess.bot.workspace.WorkspaceController
+import com.heyanle.priestess.bot.workspace.WorkspaceMemoryPolicyConfig
+import com.heyanle.priestess.bot.workspace.WorkspaceResolution
+import com.heyanle.priestess.bot.workspace.WorkspaceSnapshot
+import com.heyanle.priestess.bot.workspace.WorkspaceRuntimeDefaults
 import com.heyanle.priestess.bot.server.DashboardService
 import com.heyanle.priestess.bot.server.RuntimeHealthProvider
 import kotlinx.coroutines.CompletableDeferred
@@ -1042,6 +1052,7 @@ class ArchitectureRefactorTest {
             agentCase = AgentCase(),
             providerCase = ProviderCase(providerController),
             toolCase = ToolCase(toolController),
+            workspaceCase = buildWorkspaceCase(configCase, toolController),
         )
         val platformCase = PlatformCase { PipelineCase(pipelineController) }
         val platform = RecordingPlatform("full-flow")
@@ -1257,6 +1268,7 @@ class ArchitectureRefactorTest {
         val captureStage = SelectionCaptureStage()
         val pipelineController = PipelineController(
             listOf(
+                PinWorkspaceStage(configCase),
                 PreProcessStage(
                     agentConfig = configCase.current().agent,
                     subAgentConfig = configCase.current().subAgents,
@@ -1333,6 +1345,7 @@ class ArchitectureRefactorTest {
             providerCase = providerCase,
             toolCase = ToolCase(toolController),
             subAgentOrchestrator = subAgentOrchestrator,
+            workspaceCase = buildWorkspaceCase(configCase, toolController),
         )
 
         init {
@@ -1382,7 +1395,7 @@ class ArchitectureRefactorTest {
 
         override suspend fun run(): Job = job
         override suspend fun terminate() = Unit
-        override suspend fun sendMessage(session: MessageSession, chain: MessageChain) = Unit
+        override suspend fun sendMessage(session: MessageSession, chain: MessageChain): String? = null
 
         suspend fun publish(event: MessageEvent) {
             commitEvent(event)
@@ -1412,6 +1425,18 @@ class ArchitectureRefactorTest {
         }
     }
 
+    private class PinWorkspaceStage(
+        private val configCase: ConfigCase,
+    ) : Stage {
+        override val name = "PinWorkspace"
+        override val order = StageOrder.PREPARE_WORKSPACE
+
+        override suspend fun process(ctx: PipelineContext): Flow<Unit>? {
+            ctx.pinWorkspace(defaultWorkspaceResolution(configCase.current()))
+            return null
+        }
+    }
+
     private class RecordingPlatform(name: String) : Platform() {
         override val metadata = PlatformMetadata(
             name = name,
@@ -1425,12 +1450,58 @@ class ArchitectureRefactorTest {
         override suspend fun run(): Job = Job()
         override suspend fun terminate() = Unit
 
-        override suspend fun sendMessage(session: MessageSession, chain: MessageChain) {
+        override suspend fun sendMessage(session: MessageSession, chain: MessageChain): String? {
             sent.complete(chain)
+            return null
         }
 
         suspend fun publish(event: MessageEvent) {
             commitEvent(event)
+        }
+    }
+
+    private companion object {
+        fun buildWorkspaceCase(
+            configCase: ConfigCase,
+            toolController: ToolController,
+        ): WorkspaceCase {
+            return WorkspaceCase(
+                WorkspaceController(
+                    source = ConfigBackedWorkspaceConfigSource(configCase),
+                    toolCase = ToolCase(toolController),
+                    nowProvider = { 1_000L },
+                ),
+            )
+        }
+
+        fun defaultWorkspaceResolution(config: PriestessConfig = PriestessConfig()): WorkspaceResolution {
+            return WorkspaceResolution(
+                snapshot = WorkspaceSnapshot(
+                    id = "default",
+                    name = "Default",
+                    enabled = true,
+                    version = 1,
+                    loadedAt = 1_000L,
+                    rootDir = "/tmp/workspace",
+                    config = WorkspaceConfig(
+                        id = "default",
+                        name = "Default",
+                        isDefault = true,
+                        agents = listOf(config.agent),
+                        providerName = config.agent.providerName,
+                        subAgents = config.subAgents,
+                    ),
+                    agentConfigs = listOf(config.agent),
+                    providerName = config.agent.providerName,
+                    toolNames = emptyList(),
+                    skillDescriptors = emptyList(),
+                    skillSettings = emptyMap(),
+                    mcpServers = emptyList(),
+                    personaIds = emptyList(),
+                    memoryPolicy = WorkspaceMemoryPolicyConfig(),
+                ),
+                reason = "test workspace",
+            )
         }
     }
 

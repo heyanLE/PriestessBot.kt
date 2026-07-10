@@ -28,6 +28,7 @@ dependencies {
     implementation("org.jetbrains.exposed:exposed-dao:0.51.1")
     implementation("org.jetbrains.exposed:exposed-jdbc:0.51.1")
     implementation("org.xerial:sqlite-jdbc:3.46.1.3")
+    implementation("org.snakeyaml:snakeyaml-engine:2.7")
     implementation("io.ktor:ktor-client-core:3.0.3")
     implementation("io.ktor:ktor-client-cio:3.0.3")
     implementation("io.ktor:ktor-client-content-negotiation:3.0.3")

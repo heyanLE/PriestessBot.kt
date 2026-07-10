@@ -4,14 +4,14 @@
       <div class="subagent-hero-grid">
         <div class="subagent-copy">
           <div class="subagent-band">
-            <span>Priestess / Delegation Desk</span>
-            <span>Sub-Agent Orchestration</span>
+            <span>Changes</span>
+            <span>Sub-Agents</span>
           </div>
 
-          <h2>Delegation control board</h2>
+          <h2>Manage delegation rules.</h2>
           <p>
-            Tune routing rules, enable or suppress specialist lanes, and run draft delegation tests
-            from one daytime console before requests leave the primary agent.
+            Tune routing rules, enable or suppress specialist lanes, and run delegation tests
+            before requests leave the primary agent.
           </p>
 
           <div class="grid subagent-signal-grid">
@@ -27,8 +27,8 @@
           <article class="card subagent-rail-card">
             <div class="section-title compact">
               <div>
-                <h3>Control doctrine</h3>
-                <p>Routes should stay explicit, testable, and easy to disable when the shell changes.</p>
+                <h3>What matters here</h3>
+                <p>Routes should stay explicit, testable, and easy to disable when the runtime changes.</p>
               </div>
             </div>
 
@@ -796,6 +796,40 @@ onMounted(() => void loadConfig());
 
 .response-card {
   grid-column: span 2;
+}
+
+.subagent-command .subagent-hero,
+.subagent-command .subagent-rail-card,
+.subagent-command .config-panel,
+.subagent-command .editor-panel,
+.subagent-command .detail-rail,
+.subagent-command .test-panel,
+.subagent-command .rail-item,
+.subagent-command .detail-stat,
+.subagent-command .subagent-signal {
+  border-color: var(--line);
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.subagent-command .subagent-band span,
+.subagent-command .subagent-signal span,
+.subagent-command .rail-item span,
+.subagent-command .field-row span {
+  color: var(--weak);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+}
+
+.subagent-command .subagent-copy h2 {
+  color: var(--text-strong);
+  letter-spacing: -0.04em;
+  text-transform: none;
+}
+
+.subagent-command .subagent-copy > p,
+.subagent-command .rail-item strong,
+.subagent-command .subagent-signal p {
+  color: var(--muted);
 }
 
 @media (max-width: 1180px) {

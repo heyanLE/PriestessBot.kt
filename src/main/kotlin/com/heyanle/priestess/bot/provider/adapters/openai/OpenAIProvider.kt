@@ -6,8 +6,10 @@ import com.heyanle.priestess.bot.provider.model.*
 import io.ktor.client.*
 import io.ktor.client.call.*
 import io.ktor.client.engine.cio.*
+import io.ktor.client.plugins.*
 import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.request.*
+import io.ktor.client.statement.bodyAsText
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -90,7 +92,7 @@ class OpenAIProvider(
                 }
             })
         }
-        val body = response.body<JsonObject>()
+        val body = readJsonBody(response, "chat completions")
         val parsed = parseResponse(body)
         logger.info {
             "[PIPELINE-239] OpenAIProvider response provider=${metadata.name}, " +
@@ -104,7 +106,7 @@ class OpenAIProvider(
         val response = client.get(modelsUrl) {
             header("Authorization", "Bearer ${config.resolveApiKey()}")
         }
-        val body = response.body<JsonObject>()
+        val body = readJsonBody(response, "models")
         return body["data"]?.jsonArray
             ?.mapNotNull { it.jsonObject["id"]?.jsonPrimitive?.content }
             ?: emptyList()
@@ -140,10 +142,42 @@ class OpenAIProvider(
         return LLMResponse(content, toolCalls, finishReason, tokenUsage)
     }
 
+    private suspend fun readJsonBody(response: io.ktor.client.statement.HttpResponse, endpointName: String): JsonObject {
+        val status = response.status
+        val rawBody = response.bodyAsText()
+        val body = runCatching { Json.parseToJsonElement(rawBody).jsonObject }.getOrNull()
+
+        if (!status.isSuccess()) {
+            val providerMessage = body?.let(::extractProviderErrorMessage)
+            val fallback = rawBody.trim().take(500).ifBlank { "<empty body>" }
+            throw IllegalStateException(
+                "OpenAI-compatible $endpointName request failed: ${status.value} ${status.description}. " +
+                    (providerMessage ?: fallback),
+            )
+        }
+
+        return body ?: throw IllegalStateException(
+            "OpenAI-compatible $endpointName response was not valid JSON " +
+                "(status=${status.value}, contentType=${response.contentType() ?: "unknown"}). " +
+                rawBody.trim().take(500),
+        )
+    }
+
+    private fun extractProviderErrorMessage(body: JsonObject): String? {
+        val error = body["error"]?.jsonObject ?: return null
+        return error["message"]?.jsonPrimitive?.contentOrNull
+            ?: error["type"]?.jsonPrimitive?.contentOrNull
+            ?: error["code"]?.jsonPrimitive?.contentOrNull
+    }
+
     companion object {
         private fun defaultClient(): HttpClient {
             return HttpClient(CIO) {
                 install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
+                install(HttpTimeout) {
+                    requestTimeoutMillis = 180_000  // 3 分钟，LLM 复杂请求可能较慢
+                    connectTimeoutMillis = 15_000   // 15 秒连接超时
+                }
             }
         }
     }

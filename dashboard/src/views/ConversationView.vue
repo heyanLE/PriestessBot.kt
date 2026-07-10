@@ -4,14 +4,14 @@
       <div class="tactical-list-hero-grid">
         <div class="tactical-list-copy">
           <div class="tactical-list-band">
-            <span>Priestess / Watch Log</span>
-            <span>Session Traffic Desk</span>
+            <span>Troubleshooting</span>
+            <span>Conversations</span>
           </div>
 
-          <h2>Conversation watchboard</h2>
+          <h2>Inspect recent conversations.</h2>
           <p>
-            Monitor live sessions, platform spread, and the freshest operator traffic from a
-            daytime mission feed instead of a passive archive table.
+            Review the newest sessions, compare platform traffic, and jump into transcript detail
+            when a runtime change needs verification.
           </p>
 
           <div class="tactical-stat-grid">
@@ -39,12 +39,12 @@
         </div>
 
         <aside class="tactical-ledger">
-          <h3>Operational ledger</h3>
-          <p>Session triage works best when recency, platform, and handoff risk are visible at a glance.</p>
+          <h3>What to look for</h3>
+          <p>Use recency, platform spread, and aging traffic to decide which sessions deserve a closer read first.</p>
 
           <div class="tactical-ledger-row">
-            <span>Current posture</span>
-            <strong>{{ store.conversations.length > 0 ? 'Live watch coverage available' : 'No tracked sessions yet' }}</strong>
+            <span>Current status</span>
+            <strong>{{ store.conversations.length > 0 ? 'Recent traffic is visible' : 'No tracked sessions yet' }}</strong>
           </div>
           <div class="tactical-ledger-row">
             <span>Platform spread</span>
@@ -52,7 +52,7 @@
           </div>
           <div class="tactical-ledger-row">
             <span>Operator note</span>
-            <strong>Use the mission feed for recency, then drop into transcript detail only when escalation is needed.</strong>
+            <strong>Start with the newest session, then open transcript detail only when the issue needs evidence.</strong>
           </div>
         </aside>
       </div>
@@ -61,7 +61,7 @@
     <section class="panel tactical-table-panel">
       <div class="section-title">
         <div>
-          <h2>Mission feed</h2>
+          <h2>Session feed</h2>
           <p>{{ store.conversations.length }} stored sessions.</p>
         </div>
       </div>
@@ -100,8 +100,8 @@
     <section v-if="sortedConversations.length > 0" class="panel tactical-table-panel">
       <div class="section-title compact">
         <div>
-          <h2>Dense watch table</h2>
-          <p>Fast scan layout for operators who prefer compact rows.</p>
+          <h2>Compact table</h2>
+          <p>Fast scan layout for operators who prefer dense rows.</p>
         </div>
       </div>
 

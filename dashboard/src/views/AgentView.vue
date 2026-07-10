@@ -4,13 +4,13 @@
       <div class="command-deck__chrome">
         <div class="command-deck__header">
           <div class="command-deck__title">
-            <p class="console-kicker">Priestess Agent Operations</p>
-            <h2>{{ previewAgent?.name ?? 'Agent Control Console' }}</h2>
+            <p class="console-kicker">Changes / Agent</p>
+            <h2>{{ previewAgent?.name ?? 'Agent validation bench' }}</h2>
             <p>{{ commandSummary }}</p>
           </div>
 
           <div class="command-deck__badges">
-            <span class="command-badge">Day Shift / Hermes Shell</span>
+            <span class="command-badge">Validation workflow</span>
             <span class="inline-status" :class="draftState.tone">{{ draftState.label }}</span>
           </div>
         </div>
@@ -27,8 +27,8 @@
           <article class="card command-brief">
             <div class="section-title compact">
               <div>
-                <h3>Doctrine Envelope</h3>
-                <p>Priestess core translated into an operator-facing runtime brief.</p>
+                <h3>Instruction summary</h3>
+                <p>Translate the active agent settings into a compact runtime brief before testing.</p>
               </div>
               <span class="inline-status muted">Temp {{ formatDecimal(previewAgent?.temperature) }}</span>
             </div>
@@ -417,7 +417,7 @@ const instructionLineCount = computed(() => {
 });
 const instructionPreview = computed(() => {
   const instructions = (previewAgent.value?.instructions ?? '').replace(/\s+/g, ' ').trim();
-  if (instructions.length === 0) return 'No operator doctrine loaded yet. The console is standing by for directives.';
+  if (instructions.length === 0) return 'No instructions loaded yet. Update the draft before running validation.';
   return instructions.length > 200 ? `${instructions.slice(0, 200)}...` : instructions;
 });
 const allowedRiskCount = computed(() => normalizeArray(previewAgent.value?.allowedRiskLevels).length);
@@ -462,7 +462,7 @@ const commandSummary = computed(() => {
   if (!previewAgent.value) {
     return 'Load an agent profile to inspect model routing, risk posture, and live execution signals in one place.';
   }
-  return `Daylight operations board for ${previewAgent.value.providerName || 'the active provider'} with Priestess doctrine, Hermes-grade order, and live execution visibility.`;
+  return `Validate ${previewAgent.value.providerName || 'the active provider'} with live execution visibility before committing agent changes.`;
 });
 const commandMetrics = computed(() => [
   {
@@ -1004,6 +1004,55 @@ watch(draft, () => {
 
 .monitor-form {
   margin-top: 0;
+}
+
+.agent-console .command-deck,
+.agent-console .config-panel,
+.agent-console .monitor-panel,
+.agent-console .trace-panel,
+.agent-console .fabric-panel,
+.agent-console .fabric-card,
+.agent-console .fabric-row,
+.agent-console .command-brief,
+.agent-console .command-metric {
+  border-color: var(--line);
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.agent-console .command-deck__chrome::before {
+  display: none;
+}
+
+.agent-console .command-deck__title h2,
+.agent-console .command-brief h3 {
+  color: var(--text-strong);
+  letter-spacing: -0.03em;
+  text-transform: none;
+}
+
+.agent-console .console-kicker,
+.agent-console .command-badge,
+.agent-console .command-metric__label {
+  color: var(--weak);
+}
+
+.agent-console .command-brief__summary,
+.agent-console .fabric-row p,
+.agent-console .console-message__header p {
+  color: var(--muted);
+}
+
+.agent-console .monitor-window,
+.agent-console .trace-panel {
+  background: rgba(250, 250, 250, 0.92);
+}
+
+.agent-console .console-message,
+.agent-console .console-message.user,
+.agent-console .console-message.agent,
+.agent-console .trace-memory {
+  border-color: var(--line);
+  background: rgba(255, 255, 255, 0.94);
 }
 
 .fabric-panel {

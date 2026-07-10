@@ -4,14 +4,14 @@
       <div class="workspace-hero-grid">
         <div class="workspace-copy">
           <div class="workspace-band">
-            <span>Priestess / Workspace Diagnostics</span>
-            <span>Snapshot Control Desk</span>
+            <span>Changes</span>
+            <span>Workspaces</span>
           </div>
 
           <h2>Workspace snapshot registry</h2>
           <p>
-            Inspect runtime scopes, reload plans, and scoped resources from one daytime diagnostic
-            board before a workspace shifts the effective shell around the active agent.
+            Inspect runtime scopes, reload plans, and scoped resources before a workspace shifts
+            the effective runtime around the active agent.
           </p>
 
           <div class="grid workspace-signal-grid">
@@ -27,7 +27,7 @@
           <article class="card workspace-rail-card">
             <div class="section-title compact">
               <div>
-                <h3>Registry posture</h3>
+                <h3>What matters here</h3>
                 <p>Keep snapshot health, enabled coverage, and reload drift legible at a glance.</p>
               </div>
             </div>

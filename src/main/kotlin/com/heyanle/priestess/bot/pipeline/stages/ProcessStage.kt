@@ -12,7 +12,6 @@ import com.heyanle.priestess.bot.provider.model.ConversationMessage
 import com.heyanle.priestess.bot.tool.ToolCase
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
 
 /**
  * 执行阶段，负责选择模型供应商并通过 AgentCase 完成一次消息处理。
@@ -39,8 +38,7 @@ class ProcessStage(
         }
 
         val agent = agentContext.agent
-        val preferredProviderName = agentContext.metadata["provider_name"]
-            ?: agentContext.metadata["providerName"]
+        val preferredProviderName = agentContext.metadata["providerName"]
         val provider = preferredProviderName
             ?.takeIf { it.isNotBlank() }
             ?.let { providerCase.getByName(it) }
@@ -84,9 +82,7 @@ class ProcessStage(
         }
     }
 
-        return flow {
-            emit(Unit)
-        }
+        return null
     }
 
     private fun elapsedMillis(startedAtNanos: Long): Long {

@@ -4,8 +4,8 @@
       <div class="runtime-hero-grid">
         <div class="runtime-copy">
           <div class="runtime-band">
-            <span>Priestess / Runtime Merge</span>
-            <span>Day Shift Result Board</span>
+            <span>Changes / Effective Runtime</span>
+            <span>Resolved configuration</span>
           </div>
 
           <h2>Effective runtime preview</h2>
@@ -24,7 +24,7 @@
           <article class="card runtime-rail-card">
             <div class="section-title compact">
               <div>
-                <h3>Layer doctrine</h3>
+              <h3>What matters here</h3>
                 <p>Result first, source explicit, overrides impossible to miss.</p>
               </div>
             </div>
@@ -515,5 +515,54 @@ onMounted(async () => {
   .runtime-signal-grid {
     grid-template-columns: 1fr;
   }
+}
+</style>
+
+<style scoped>
+.runtime-hero,
+.runtime-main,
+.runtime-detail-rail {
+  border-color: var(--line);
+  background: var(--surface);
+}
+
+.runtime-band span,
+.runtime-signal span,
+.rail-item span,
+.source-row span {
+  color: var(--weak);
+}
+
+.runtime-band span {
+  border-color: var(--line);
+  background: var(--surface-subtle);
+}
+
+.runtime-copy h2,
+.runtime-signal strong,
+.rail-item strong,
+.source-row strong {
+  color: var(--ink);
+}
+
+.runtime-copy h2 {
+  text-transform: none;
+  letter-spacing: -0.04em;
+}
+
+.runtime-copy > p,
+.runtime-signal p {
+  color: var(--muted);
+}
+
+.runtime-rail-card,
+.runtime-signal,
+.preview-controls,
+.trace-matrix-card,
+.rail-item,
+.source-row,
+.trace-table-wrap {
+  border-color: var(--line);
+  background: var(--surface-subtle);
 }
 </style>

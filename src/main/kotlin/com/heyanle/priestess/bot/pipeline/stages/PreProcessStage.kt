@@ -5,7 +5,6 @@ import com.heyanle.priestess.bot.agent.AgentContext
 import com.heyanle.priestess.bot.agent.orchestration.SubAgentOrchestrator
 import com.heyanle.priestess.bot.config.AgentConfig
 import com.heyanle.priestess.bot.config.PipelineConfig
-import com.heyanle.priestess.bot.config.SubAgentOrchestrationConfig
 import com.heyanle.priestess.bot.conversation.ConversationCase
 import com.heyanle.priestess.bot.conversation.MessageRole
 import com.heyanle.priestess.bot.pipeline.PipelineContext
@@ -16,8 +15,6 @@ import com.heyanle.priestess.bot.persona.PersonaMemoryInjector
 import com.heyanle.priestess.bot.provider.model.ConversationMessage
 import com.heyanle.priestess.bot.skill.PipelineSkillState
 import com.heyanle.priestess.bot.skill.SkillCase
-import com.heyanle.priestess.bot.workspace.WorkspaceCase
-import com.heyanle.priestess.bot.workspace.WorkspaceResolutionContext
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -32,12 +29,10 @@ import kotlinx.serialization.json.Json
  */
 class PreProcessStage(
     private val agentConfig: AgentConfig,
-    private val subAgentConfig: SubAgentOrchestrationConfig = SubAgentOrchestrationConfig(),
     private val pipelineConfig: PipelineConfig,
     private val conversationCase: ConversationCase,
     private val agentCase: AgentCase,
     private val subAgentOrchestrator: SubAgentOrchestrator? = null,
-    private val workspaceCase: WorkspaceCase? = null,
     private val personaMemoryInjector: PersonaMemoryInjector? = null,
     private val skillCase: SkillCase? = null,
 ) : Stage {
@@ -50,20 +45,19 @@ class PreProcessStage(
     override suspend fun process(ctx: PipelineContext): Flow<Unit> {
         val session = ctx.event.session
         val platform = ctx.event.platform
-        val workspaceResolution = workspaceCase?.resolve(
-            WorkspaceResolutionContext(
-                platformName = platform.metadata.name,
-                sessionId = session.id,
-                userId = ctx.senderId,
-                metadata = session.metadata,
-            ),
-        )
-        if (workspaceResolution != null) {
-            ctx.pinWorkspace(workspaceResolution)
-            logger.info {
-                "[PIPELINE-105] PreProcess pinned workspace=${workspaceResolution.snapshot.id}, " +
-                    "version=${workspaceResolution.snapshot.version}, reason=${workspaceResolution.reason}"
+        val resolution = ctx.workspaceResolution
+        if (resolution == null) {
+            logger.warn {
+                "[PIPELINE-101] PreProcess missing prepared workspace for " +
+                    "platform=${platform.metadata.name}, session=${session.id}; stopping pipeline"
             }
+            ctx.stop()
+            return flow {}
+        }
+        val snapshot = resolution.snapshot
+        logger.info {
+            "[PIPELINE-105] PreProcess using pinned workspace=${snapshot.id}, " +
+                "version=${snapshot.version}, reason=${resolution.reason}"
         }
 
         val conversation = conversationCase.getOrCreate(
@@ -75,31 +69,32 @@ class PreProcessStage(
                 "platform=${platform.metadata.name}, session=${session.id}"
         }
 
-        val primaryAgentConfig = ctx.workspaceSnapshot
-            ?.agentConfigs
-            ?.firstOrNull()
+        val primaryAgentConfig = snapshot.agentConfigs
+            .firstOrNull()
             ?: agentConfig
-        val orchestrationConfig = ctx.workspaceSnapshot
-            ?.config
-            ?.subAgents
-            ?: subAgentConfig
+        val orchestrationConfig = snapshot.config.subAgents
         val selection = subAgentOrchestrator?.select(
             message = ctx.textContent,
             primaryAgent = primaryAgentConfig,
             config = orchestrationConfig,
         )
         val selectedAgentConfig = selection?.agentConfig ?: primaryAgentConfig
+        val selectedProviderName = when {
+            selection != null &&
+                selection.agentName != primaryAgentConfig.name &&
+                selection.agentConfig.providerName.isNotBlank() &&
+                selection.agentConfig.providerName != primaryAgentConfig.providerName -> {
+                selection.agentConfig.providerName
+            }
+            else -> snapshot.providerName.ifBlank { selectedAgentConfig.providerName }
+        }
         val baseAgent = agentCase.createAgent(selectedAgentConfig)
         val injection = personaMemoryInjector?.let { injector ->
-            val workspaceId = ctx.workspaceId ?: "default"
-            val snapshot = ctx.workspaceSnapshot
-            val maxMemories = snapshot
-                ?.memoryPolicy
-                ?.let { policy -> if (policy.enabled) policy.maxInjectedMemories else 0 }
-                ?: 3
-            val allowedPersonaIds = snapshot
-                ?.personaIds
-                ?.takeIf { it.isNotEmpty() }
+            val workspaceId = snapshot.id
+            val maxMemories = snapshot.memoryPolicy
+                .let { policy -> if (policy.enabled) policy.maxInjectedMemories else 0 }
+            val allowedPersonaIds = snapshot.personaIds
+                .takeIf { it.isNotEmpty() }
                 ?.toSet()
             injector.inject(
                 baseInstructions = baseAgent.instructions,
@@ -166,30 +161,17 @@ class PreProcessStage(
             platform = platform,
             session = session,
             messages = messages,
-            metadata = buildAgentMetadata(ctx) + (injection?.metadata ?: emptyMap()),
-            scopedTools = ctx.workspaceSnapshot?.mcpResources.orEmpty().map { it.tool },
-            skillState = ctx.workspaceSnapshot
-                ?.let { snapshot -> skillCase?.getWorkspaceSkillState(snapshot) }
+            metadata = buildAgentMetadata(ctx, selectedProviderName) + (injection?.metadata ?: emptyMap()),
+            scopedTools = snapshot.mcpResources.map { it.tool },
+            skillState = skillCase
+                ?.getWorkspaceSkillState(snapshot)
                 ?: PipelineSkillState(),
         )
-        ctx.shared["conversation"] = conversation
-        ctx.shared["agent"] = agent
-        ctx.shared["subAgentSelectionAgent"] = selection?.agentName ?: agent.name
-        ctx.shared["subAgentSelectionReason"] = selection?.reason ?: "primary_agent"
-        selection?.routeName?.let { ctx.shared["subAgentSelectionRoute"] = it }
-        ctx.workspaceId?.let { ctx.shared["workspaceId"] = it }
-        ctx.workspaceSnapshotVersion?.let { ctx.shared["workspaceSnapshotVersion"] = it }
-        ctx.workspaceResolutionReason?.let { ctx.shared["workspaceResolutionReason"] = it }
-        injection?.persona?.let { ctx.shared["injectedPersonaId"] = it.id }
-        val injectedMemories = injection?.memories.orEmpty()
-        if (injectedMemories.isNotEmpty()) {
-            ctx.shared["injectedMemoryIds"] = injectedMemories.map { it.record.id }
-        }
 
         logger.info {
             "[PIPELINE-119] PreProcess injected agent=${agent.name}, model=${agent.model}, " +
                 "selection=${selection?.reason ?: "primary_agent"}, route=${selection?.routeName}, " +
-                "workspace=${ctx.workspaceId ?: "none"}, history=$historyCount, " +
+                "workspace=${snapshot.id}, history=$historyCount, " +
                 "persona=${injection?.persona?.id ?: "none"}, memories=${injection?.memories?.size ?: 0}"
         }
 
@@ -242,38 +224,27 @@ class PreProcessStage(
         }
     }
 
-    private fun buildAgentMetadata(ctx: PipelineContext): Map<String, String> {
+    private fun buildAgentMetadata(
+        ctx: PipelineContext,
+        selectedProviderName: String,
+    ): Map<String, String> {
         val snapshot = ctx.workspaceSnapshot ?: return ctx.event.session.metadata
+        val resolutionReason = ctx.workspaceResolution?.reason.orEmpty()
         return ctx.event.session.metadata + mapOf(
-            "workspace_id" to snapshot.id,
             "workspaceId" to snapshot.id,
-            "workspace_name" to snapshot.name,
-            "workspaceName" to snapshot.name,
-            "workspace_snapshot_version" to snapshot.version.toString(),
+            "workspaceRootDir" to snapshot.rootDir,
             "workspaceSnapshotVersion" to snapshot.version.toString(),
-            "workspace_resolution_reason" to (ctx.workspaceResolutionReason ?: ""),
-            "workspaceResolutionReason" to (ctx.workspaceResolutionReason ?: ""),
-            "provider_name" to snapshot.providerName,
-            "providerName" to snapshot.providerName,
-            "workspace_tool_names" to snapshot.toolNames.joinToString(","),
+            "workspaceResolutionReason" to resolutionReason,
+            "providerName" to selectedProviderName,
             "workspaceToolNames" to snapshot.toolNames.joinToString(","),
-            "workspace_skill_names" to snapshot.skillNames.joinToString(","),
             "workspaceSkillNames" to snapshot.skillNames.joinToString(","),
-            "workspace_skill_settings" to snapshot.skillSettings.entries.joinToString(";") { (name, settings) ->
-                "$name=" + settings.entries.joinToString(",") { (key, value) -> "$key:$value" }
-            },
             "workspaceSkillSettings" to snapshot.skillSettings.entries.joinToString(";") { (name, settings) ->
                 "$name=" + settings.entries.joinToString(",") { (key, value) -> "$key:$value" }
             },
-            "workspace_mcp_server_ids" to snapshot.mcpServerIds.joinToString(","),
             "workspaceMcpServerIds" to snapshot.mcpServerIds.joinToString(","),
-            "workspace_memory_enabled" to snapshot.memoryPolicy.enabled.toString(),
             "workspaceMemoryEnabled" to snapshot.memoryPolicy.enabled.toString(),
-            "workspace_memory_allowed_scopes" to snapshot.memoryPolicy.allowedScopes.joinToString(","),
             "workspaceMemoryAllowedScopes" to snapshot.memoryPolicy.allowedScopes.joinToString(","),
-            "workspace_memory_knowledge_base_ids" to snapshot.memoryPolicy.knowledgeBaseIds.joinToString(","),
             "workspaceMemoryKnowledgeBaseIds" to snapshot.memoryPolicy.knowledgeBaseIds.joinToString(","),
-            "workspace_memory_max_injected" to snapshot.memoryPolicy.maxInjectedMemories.toString(),
             "workspaceMemoryMaxInjected" to snapshot.memoryPolicy.maxInjectedMemories.toString(),
         )
     }

@@ -7,6 +7,7 @@ import com.heyanle.priestess.bot.reminder.ReminderCase
 import com.heyanle.priestess.bot.server.ServerCase
 import com.heyanle.priestess.bot.tool.FunctionTool
 import com.heyanle.priestess.bot.tool.ToolCase
+import com.heyanle.priestess.bot.workspace.WorkspaceCase
 
 /**
  * 注册所有内置工具，并通过工具模块门面保留实时注册表视图。
@@ -18,6 +19,7 @@ fun registerBuiltinTools(
     conversationCaseProvider: (() -> ConversationCase)? = null,
     memoryCaseProvider: (() -> MemoryCase)? = null,
     reminderCaseProvider: (() -> ReminderCase)? = null,
+    workspaceCaseProvider: (() -> WorkspaceCase)? = null,
 ) {
     fun register(tool: FunctionTool, statusReason: String? = null) {
         registry.registerBuiltinTool(tool, statusReason)
@@ -26,6 +28,9 @@ fun registerBuiltinTools(
     register(ListToolsTool(registeredToolsProvider = { registry.getRegisteredTools() }))
     register(UseSkillTool())
     register(UnloadSkillTool())
+    register(SkillsListTool())
+    register(SkillViewTool())
+    register(SkillManageTool(workspaceCaseProvider))
     register(
         HealthCheckTool(
             serverCaseProvider
@@ -45,7 +50,15 @@ fun registerBuiltinTools(
     register(CreateReminderTool(reminderCaseProvider ?: { error("Reminder dependency is unavailable") }), reminderStatusReason(reminderCaseProvider))
     register(ListRemindersTool(reminderCaseProvider ?: { error("Reminder dependency is unavailable") }), reminderStatusReason(reminderCaseProvider))
     register(DeleteReminderTool(reminderCaseProvider ?: { error("Reminder dependency is unavailable") }), reminderStatusReason(reminderCaseProvider))
-    register(WebSearchTool(), statusReason = "Requires search provider dependency")
+    register(WebSearchTool())
+    register(WebExtractTool())
+    register(ReadFileTool())
+    register(WriteFileTool())
+    register(PatchFileTool())
+    register(SearchFilesTool())
+    register(TerminalTool())
+    register(ProcessTool())
+    register(ReadTerminalTool())
     register(EarlyReplyTool())
     register(SendMessageTool())
     register(

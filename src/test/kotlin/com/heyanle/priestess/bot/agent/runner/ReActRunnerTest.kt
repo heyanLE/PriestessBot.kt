@@ -9,7 +9,7 @@ import com.heyanle.priestess.bot.agent.context.TokenCounter
 import com.heyanle.priestess.bot.provider.model.LLMResponse
 import com.heyanle.priestess.bot.provider.model.ToolCall
 import com.heyanle.priestess.bot.skill.PipelineSkillState
-import com.heyanle.priestess.bot.skill.SkillPromptDocument
+import com.heyanle.priestess.bot.skill.SkillPromptReference
 import com.heyanle.priestess.bot.testkit.FakeProvider
 import com.heyanle.priestess.bot.testkit.FakeTool
 import com.heyanle.priestess.bot.testkit.testAgent
@@ -79,7 +79,7 @@ class ReActRunnerTest {
         val hiddenTool = FakeTool(name = "hidden_tool")
         val provider = FakeProvider(listOf(LLMResponse(content = "done", finishReason = "stop")))
         val context = testAgentContext(
-            metadata = mapOf("workspace_tool_names" to "allowed_tool"),
+            metadata = mapOf("workspaceToolNames" to "allowed_tool"),
         )
 
         runner(context, provider, listOf(allowedTool, hiddenTool)).stepUntilDone()
@@ -104,7 +104,7 @@ class ReActRunnerTest {
             ),
         )
         val context = testAgentContext(
-            metadata = mapOf("workspace_tool_names" to "workspace_mcp_tool"),
+            metadata = mapOf("workspaceToolNames" to "workspace_mcp_tool"),
             scopedTools = listOf(scopedTool),
         )
 
@@ -134,9 +134,9 @@ class ReActRunnerTest {
         val context = testAgentContext(
             skillState = PipelineSkillState(
                 listOf(
-                    SkillPromptDocument(
+                    SkillPromptReference(
                         name = "research",
-                        markdown = "# Skill: research\n\nFollow the research workflow.",
+                        inlineMarkdown = "# Skill: research\n\nFollow the research workflow.",
                     ),
                 ),
             ),
@@ -171,9 +171,9 @@ class ReActRunnerTest {
         val context = testAgentContext(
             skillState = PipelineSkillState(
                 listOf(
-                    SkillPromptDocument(
+                    SkillPromptReference(
                         name = "research",
-                        markdown = "# Skill: research\n\nFollow the research workflow.",
+                        inlineMarkdown = "# Skill: research\n\nFollow the research workflow.",
                     ),
                 ),
             ),

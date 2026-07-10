@@ -52,6 +52,22 @@ fun Application.dashboardRoutes(service: DashboardService) {
                 call.respond(service.restoreConfigBackup(id))
             }
 
+            get("/config/layers/database") {
+                call.respond(service.databaseConfigLayer())
+            }
+            get("/config/layers/environment") {
+                call.respond(service.environmentOverrideSummary())
+            }
+            get("/config/workdir") {
+                call.respond(service.workingDirectorySummary())
+            }
+            put("/config/workdir") {
+                call.respond(service.updateWorkingDirectory(call.receive<WorkingDirectoryUpdateRequest>()))
+            }
+            post("/config/preview") {
+                call.respond(service.effectiveRuntimePreview(call.receive<EffectiveRuntimePreviewRequest>()))
+            }
+
             get("/platforms") {
                 call.respond(service.platforms())
             }

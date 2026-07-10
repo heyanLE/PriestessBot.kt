@@ -4,14 +4,14 @@
       <div class="tactical-list-hero-grid">
         <div class="tactical-list-copy">
           <div class="tactical-list-band">
-            <span>Priestess / Relay Grid</span>
-            <span>Day Shift Control</span>
+            <span>Assets</span>
+            <span>Platforms</span>
           </div>
 
-          <h2>Platform relay board</h2>
+          <h2>Platform inventory</h2>
           <p>
-            Observe ingress relays, endpoint posture, and operator actions from a daytime tactical
-            shell before traffic reaches the conversation pipeline.
+            Track ingress relays, endpoint posture, and runtime actions from one concise platform
+            inventory before traffic reaches the conversation pipeline.
           </p>
 
           <div class="tactical-stat-grid">
@@ -39,7 +39,7 @@
         </div>
 
         <aside class="tactical-ledger">
-          <h3>Operational ledger</h3>
+          <h3>What matters here</h3>
           <p>Keep runtime entry points obvious: status first, endpoint second, actions last.</p>
 
           <div class="tactical-ledger-row">
@@ -61,7 +61,7 @@
     <section class="panel tactical-table-panel">
       <div class="section-title">
         <div>
-          <h2>Relay roster</h2>
+          <h2>Platform roster</h2>
           <p>{{ store.enabledPlatforms }} enabled, {{ store.runningPlatforms }} running.</p>
         </div>
       </div>

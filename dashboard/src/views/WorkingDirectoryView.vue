@@ -4,14 +4,14 @@
       <div class="workingdir-hero-grid">
         <div class="workingdir-copy">
           <div class="workingdir-band">
-            <span>Priestess / Local Overlay</span>
-            <span>Working Directory Control</span>
+            <span>Changes</span>
+            <span>Working Directory</span>
           </div>
 
           <h2>Working directory pointer</h2>
           <p>
             Resolve the active workdir, verify discovered overlays, and keep path-source drift
-            obvious before workspace skills or local agents affect the runtime shell.
+            obvious before workspace skills or local agents affect the runtime.
           </p>
 
           <div class="grid workingdir-signal-grid">
@@ -27,8 +27,8 @@
           <article class="card workingdir-rail-card">
             <div class="section-title compact">
               <div>
-                <h3>Path doctrine</h3>
-                <p>Make the active pointer, source layer, and overlay discoveries impossible to miss.</p>
+                <h3>What matters here</h3>
+                <p>Keep the active pointer, source layer, and overlay discoveries obvious at a glance.</p>
               </div>
             </div>
 

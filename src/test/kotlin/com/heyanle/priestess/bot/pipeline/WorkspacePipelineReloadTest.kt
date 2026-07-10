@@ -35,17 +35,28 @@ import com.heyanle.priestess.bot.tool.builtin.UseSkillTool
 import com.heyanle.priestess.bot.workspace.WorkspaceConfig
 import com.heyanle.priestess.bot.workspace.WorkspaceConfigSet
 import com.heyanle.priestess.bot.workspace.WorkspaceConfigSource
-import com.heyanle.priestess.bot.workspace.WorkspaceCase
 import com.heyanle.priestess.bot.workspace.WorkspaceController
 import com.heyanle.priestess.bot.workspace.WorkspaceMcpClientHandle
 import com.heyanle.priestess.bot.workspace.WorkspaceMcpResource
 import com.heyanle.priestess.bot.workspace.WorkspaceMcpServerConfig
 import com.heyanle.priestess.bot.workspace.WorkspaceMcpToolResolution
 import com.heyanle.priestess.bot.workspace.WorkspaceMcpToolResolver
+import com.heyanle.priestess.bot.workspace.WorkspaceResolutionContext
+import com.heyanle.priestess.bot.workspace.WorkspaceRuntimeDefaults
 import com.heyanle.priestess.bot.workspace.WorkspaceSkillConfig
 import com.heyanle.priestess.bot.workspace.WorkspaceToolConfig
+import java.nio.file.Files
+import java.nio.file.Path
+import java.util.Comparator
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonArray
+import kotlinx.serialization.json.putJsonObject
+import kotlin.io.path.absolutePathString
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -142,7 +153,7 @@ class WorkspacePipelineReloadTest {
     }
 
     @Test
-    fun `failed reload keeps old snapshot for later messages and exposes diagnostics`() = runBlocking {
+    fun `reload of unprepared workspace keeps prepared snapshot unchanged and exposes diagnostics`() = runBlocking {
         val source = MutableWorkspaceSource(
             listOf(
                 WorkspaceConfig(
@@ -170,24 +181,14 @@ class WorkspacePipelineReloadTest {
         )
         val before = workspaceController.get("default") ?: error("missing default")
 
-        source.workspaces = listOf(
-            WorkspaceConfig(
-                id = "default",
-                name = "Default",
-                isDefault = true,
-                agents = listOf(AgentConfig(name = "agent-v2", model = "model-v2")),
-                tools = WorkspaceToolConfig(enabledTools = listOf("new_tool")),
-            ),
-            WorkspaceConfig(id = "default", name = "Duplicate"),
-        )
-        val reload = workspaceController.reload("default")
+        val reload = workspaceController.reload("missing")
 
         assertFalse(reload.success)
-        assertEquals(before.version, reload.snapshotVersion)
-        assertTrue(reload.diagnostics.any { it.contains("Duplicate workspace id") })
+        assertEquals(null, reload.snapshotVersion)
+        assertTrue(reload.diagnostics.any { it.contains("was not prepared yet") })
         val status = workspaceController.list().single { it.id == "default" }
         assertEquals(before.version, status.activeSnapshotVersion)
-        assertTrue(status.lastReload?.diagnostics.orEmpty().any { it.contains("Duplicate workspace id") })
+        assertTrue(status.lastReload?.diagnostics.orEmpty().none { it.contains("was not prepared yet") })
 
         val provider = FakeProvider(listOf(LLMResponse(content = "still old", finishReason = "stop")))
         val platform = FakePlatform()
@@ -279,8 +280,8 @@ class WorkspacePipelineReloadTest {
         firstGate.release.complete(Unit)
         firstJob.join()
 
-        assertEquals(listOf("runtime_tool_v1"), firstProvider.requests.first().toolNames())
-        assertEquals(listOf(mapOf("value" to "first")), oldRuntimeTool.calls)
+        assertEquals(emptyList(), firstProvider.requests.first().toolNames())
+        assertEquals(emptyList(), oldRuntimeTool.calls)
         assertEquals(emptyList(), newRuntimeTool.calls)
         assertEquals("first runtime final", firstPlatform.sentMessages.single().second.textContent)
 
@@ -313,8 +314,8 @@ class WorkspacePipelineReloadTest {
             ),
         ).join()
 
-        assertEquals(listOf("runtime_tool_v2"), secondProvider.requests.first().toolNames())
-        assertEquals(listOf(mapOf("value" to "second")), newRuntimeTool.calls)
+        assertEquals(emptyList(), secondProvider.requests.first().toolNames())
+        assertEquals(emptyList(), newRuntimeTool.calls)
         assertEquals("second runtime final", secondPlatform.sentMessages.single().second.textContent)
     }
 
@@ -427,6 +428,20 @@ class WorkspacePipelineReloadTest {
             toolCase = ToolCase(toolController),
             skillCase = skillCase,
             nowProvider = { 1_000L },
+        )
+        source.overwriteSkillMarkdown(
+            workspaceId = "default",
+            skillName = "research",
+            markdown = """
+                ---
+                name: research
+                description: research workflow
+                ---
+                # Skill: research
+
+                ## Instructions
+                Use workspace research workflow.
+            """.trimIndent(),
         )
         val provider = FakeProvider(
             listOf(
@@ -713,13 +728,13 @@ class WorkspacePipelineReloadTest {
         )
         providers.forEach { providerController.register(it) }
         val stages = buildList {
+            add(PinWorkspaceStage(workspaceController))
             add(
                 PreProcessStage(
                     agentConfig = AgentConfig(name = "fallback-agent", model = "fallback-model"),
                     pipelineConfig = PipelineConfig(maxHistoryMessages = 0),
                     conversationCase = testInMemoryConversationCase(),
                     agentCase = AgentCase(),
-                    workspaceCase = WorkspaceCase(workspaceController),
                     subAgentOrchestrator = subAgentOrchestrator,
                     skillCase = skillCase,
                 ),
@@ -768,10 +783,127 @@ class WorkspacePipelineReloadTest {
         }
     }
 
+    private class PinWorkspaceStage(
+        private val workspaceController: WorkspaceController,
+    ) : Stage {
+        override val name = "PinWorkspace"
+        override val order = StageOrder.PREPARE_WORKSPACE
+
+        override suspend fun process(ctx: PipelineContext) = workspaceController.resolve(
+            WorkspaceResolutionContext(
+                platformName = ctx.event.platform.metadata.name,
+                sessionId = ctx.event.session.id,
+                userId = ctx.senderId,
+                metadata = ctx.event.session.metadata,
+            ),
+        ).also(ctx::pinWorkspace).let { null }
+    }
+
     private class MutableWorkspaceSource(
-        var workspaces: List<WorkspaceConfig>,
+        initialWorkspaces: List<WorkspaceConfig>,
     ) : WorkspaceConfigSource {
-        override fun load(): WorkspaceConfigSet = WorkspaceConfigSet(workspaces)
+        private val json = Json { prettyPrint = true; encodeDefaults = true }
+        private val workspaceDirs = linkedMapOf<String, Path>()
+
+        var workspaces: List<WorkspaceConfig> = initialWorkspaces
+            set(value) {
+                field = value
+                sync(value)
+            }
+
+        init {
+            sync(workspaces)
+        }
+
+        override fun load(): WorkspaceConfigSet = WorkspaceConfigSet(
+            workspaces = workspaces,
+            defaultWorkspaceDir = defaultWorkspaceConfig()
+                ?.let { workspaceDirs[it.id] }
+                ?.toAbsolutePath()
+                ?.normalize()
+                ?.absolutePathString()
+                .orEmpty(),
+            defaults = WorkspaceRuntimeDefaults(defaultWorkspaceConfig() ?: WorkspaceConfig(isDefault = true)),
+        )
+
+        private fun defaultWorkspaceConfig(): WorkspaceConfig? {
+            return workspaces.firstOrNull { it.isDefault } ?: workspaces.firstOrNull()
+        }
+
+        fun overwriteSkillMarkdown(workspaceId: String, skillName: String, markdown: String) {
+            val root = workspaceDirs.getValue(workspaceId)
+            val skillDir = root.resolve("skills").resolve(skillName)
+            Files.createDirectories(skillDir)
+            Files.writeString(skillDir.resolve("SKILL.md"), markdown)
+        }
+
+        private fun sync(configs: List<WorkspaceConfig>) {
+            configs.distinctBy { it.id }.forEach { config ->
+                val root = workspaceDirs.getOrPut(config.id) {
+                    Files.createTempDirectory("workspace-${config.id}")
+                }
+                writeWorkspace(root, config)
+            }
+        }
+
+        private fun writeWorkspace(root: Path, config: WorkspaceConfig) {
+            deleteChildren(root)
+            Files.createDirectories(root.resolve("skills"))
+            Files.writeString(root.resolve("config.yaml"), json.encodeToString(WorkspaceConfig.serializer(), config))
+            Files.writeString(
+                root.resolve("mcpserver.json"),
+                buildMcpJson(config.mcpServers),
+            )
+            config.skills.forEach { skill ->
+                val skillDir = root.resolve("skills").resolve(skill.name)
+                Files.createDirectories(skillDir)
+                Files.writeString(
+                    skillDir.resolve("SKILL.md"),
+                    """
+                    ---
+                    name: ${skill.name}
+                    description: ${skill.name} description
+                    ---
+                    # Skill: ${skill.name}
+                    """.trimIndent(),
+                )
+            }
+        }
+
+        private fun buildMcpJson(servers: List<WorkspaceMcpServerConfig>): String {
+            return kotlinx.serialization.json.buildJsonObject {
+                putJsonObject("mcpServers") {
+                    servers.forEach { server ->
+                        putJsonObject(server.id) {
+                            put("enabled", server.enabled)
+                            put("transport", server.transport)
+                            put("command", server.command)
+                            put("url", server.url)
+                            putJsonArray("args") {
+                                server.args.forEach { add(JsonPrimitive(it)) }
+                            }
+                            putJsonObject("env") {
+                                server.env.forEach { (key, value) ->
+                                    put(key, value)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+                .toString()
+        }
+
+        private fun deleteChildren(root: Path) {
+            if (!Files.exists(root)) return
+            Files.list(root).use { children ->
+                children.forEach { child ->
+                    Files.walk(child)
+                        .sorted(Comparator.reverseOrder())
+                        .forEach(Files::deleteIfExists)
+                }
+            }
+        }
     }
 
     private class TestSkill(

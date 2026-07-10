@@ -87,7 +87,7 @@ abstract class Platform {
 
     abstract suspend fun run(): Job
     abstract suspend fun terminate()
-    abstract suspend fun sendMessage(session: MessageSession, chain: MessageChain)
+    abstract suspend fun sendMessage(session: MessageSession, chain: MessageChain): String?
 
     fun setMessageHandler(handler: suspend (MessageEvent) -> Unit) {
         messageHandler = handler

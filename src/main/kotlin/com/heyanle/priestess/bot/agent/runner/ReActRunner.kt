@@ -68,7 +68,6 @@ class ReActRunner(
     }
 
     override suspend fun stepUntilDone(): AgentResponse = mutex.withLock {
-        refreshSystemMessage()
         hooks?.onAgentBegin(context)
         state = AgentState.RUNNING
 
@@ -76,13 +75,10 @@ class ReActRunner(
             val response = doStep()
             when (response) {
                 is AgentResponse.Final -> {
-                    state = AgentState.DONE
-                    finalResponseCache = response
                     return@withLock response
                 }
                 is AgentResponse.Error -> {
                     state = AgentState.ERROR
-                    hooks?.onAgentError(context, response)
                     return@withLock response
                 }
                 is AgentResponse.ToolExecuted -> currentStep++
@@ -247,9 +243,7 @@ class ReActRunner(
     }
 
     private fun workspaceToolNames(): Set<String>? {
-        val raw = context.metadata["workspace_tool_names"]
-            ?: context.metadata["workspaceToolNames"]
-            ?: return null
+        val raw = context.metadata["workspaceToolNames"] ?: return null
         return raw.split(",")
             .map { it.trim() }
             .filter { it.isNotBlank() }
@@ -270,6 +264,15 @@ class ReActRunner(
                 append(" / ")
                 append(session.id)
             }
+            append("\n\n## Formatting")
+            append("\n")
+            append("Your responses MUST use Markdown formatting:")
+            append("\n- Use **bold** for emphasis and headings")
+            append("\n- Use *italic* for secondary emphasis")
+            append("\n- Use `inline code` for code, commands, or technical terms")
+            append("\n- Use ```code blocks``` for multi-line code")
+            append("\n- Use bullet lists and numbered lists as appropriate")
+            append("\n- Use ### headings for structuring long responses")
             append("\n\n## Role Document")
             append("\n")
             append(context.agent.instructions.trim())
