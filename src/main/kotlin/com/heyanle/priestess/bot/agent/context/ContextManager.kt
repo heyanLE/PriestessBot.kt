@@ -22,13 +22,16 @@ class ContextManager(
         maxRounds: Int = -1,
     ): List<ConversationMessage> {
         if (messages.isEmpty()) return messages
+        val validMessages = ToolCallRoundSanitizer.sanitize(messages)
         val effectiveMaxRounds = if (maxRounds > 0) maxRounds else agent.maxContextRounds
         val effectiveMaxTokens = if (maxTokens > 0) maxTokens else agent.maxContextTokens
-        if (!needsCompression(messages, effectiveMaxTokens, effectiveMaxRounds)) {
-            return messages
+        if (!needsCompression(validMessages, effectiveMaxTokens, effectiveMaxRounds)) {
+            return validMessages
         }
         val strategy = getStrategy(agent)
-        return strategy.compress(messages, systemMessage, effectiveMaxTokens, effectiveMaxRounds)
+        return ToolCallRoundSanitizer.sanitize(
+            strategy.compress(validMessages, systemMessage, effectiveMaxTokens, effectiveMaxRounds),
+        )
     }
 
     fun needsCompression(

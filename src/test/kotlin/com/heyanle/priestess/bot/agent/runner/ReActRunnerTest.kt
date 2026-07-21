@@ -8,6 +8,7 @@ import com.heyanle.priestess.bot.agent.context.ContextManager
 import com.heyanle.priestess.bot.agent.context.TokenCounter
 import com.heyanle.priestess.bot.provider.model.LLMResponse
 import com.heyanle.priestess.bot.provider.model.ToolCall
+import com.heyanle.priestess.bot.pipeline.PermissionGroup
 import com.heyanle.priestess.bot.skill.PipelineSkillState
 import com.heyanle.priestess.bot.skill.SkillPromptReference
 import com.heyanle.priestess.bot.testkit.FakeProvider
@@ -22,6 +23,7 @@ import com.heyanle.priestess.bot.tool.ToolPolicy
 import com.heyanle.priestess.bot.tool.ToolPolicyDecision
 import com.heyanle.priestess.bot.tool.ToolPolicyDenialCode
 import com.heyanle.priestess.bot.tool.ToolResult
+import com.heyanle.priestess.bot.tool.ToolSchema
 import com.heyanle.priestess.bot.tool.builtin.UnloadSkillTool
 import com.heyanle.priestess.bot.tool.builtin.UseSkillTool
 import kotlinx.coroutines.runBlocking
@@ -88,6 +90,36 @@ class ReActRunnerTest {
             it["function"]?.toString()?.let { function -> Regex(""""name":"([^"]+)"""").find(function)?.groupValues?.get(1) }
         }
         assertEquals(listOf("allowed_tool"), exposedToolNames)
+    }
+
+    @Test
+    fun `operator sees administrator tool warning but not super administrator tool`() = runBlocking {
+        val adminTool = FakeTool(
+            schema = ToolSchema(
+                name = "admin_tool",
+                description = "Administrator operation.",
+                requiredPermissionGroup = PermissionGroup.ADMIN,
+            ),
+        )
+        val superAdminTool = FakeTool(
+            schema = ToolSchema(
+                name = "super_admin_tool",
+                description = "Super administrator operation.",
+                requiredPermissionGroup = PermissionGroup.SUPER_ADMIN,
+            ),
+        )
+        val provider = FakeProvider(listOf(LLMResponse(content = "done", finishReason = "stop")))
+
+        runner(
+            context = testAgentContext().copy(permissionGroup = PermissionGroup.OPERATOR),
+            provider = provider,
+            tools = listOf(adminTool, superAdminTool),
+        ).stepUntilDone()
+
+        val exposedTools = provider.requests.single().tools.joinToString()
+        assertTrue(exposedTools.contains("admin_tool"))
+        assertTrue(exposedTools.contains("当前权限不足：需要 ADMIN"))
+        assertFalse(exposedTools.contains("super_admin_tool"))
     }
 
     @Test
@@ -332,23 +364,25 @@ class ReActRunnerTest {
     }
 
     @Test
-    fun `returns error when max steps are exceeded`() = runBlocking {
+    fun `forces a final response without tools when max steps are reached`() = runBlocking {
         val tool = FakeTool()
+        val provider = FakeProvider(
+            listOf(
+                LLMResponse(toolCalls = listOf(ToolCall(id = "call-1", name = "fake_tool", arguments = """{"value":"abc"}"""))),
+                LLMResponse(content = "partial findings", finishReason = "stop"),
+            ),
+        )
         val runner = runner(
             context = testAgentContext(agent = testAgent(maxSteps = 1)),
-            provider = FakeProvider(
-                listOf(
-                    LLMResponse(toolCalls = listOf(ToolCall(id = "call-1", name = "fake_tool", arguments = """{"value":"abc"}"""))),
-                ),
-            ),
+            provider = provider,
             tools = listOf(tool),
         )
 
         val response = runner.stepUntilDone()
 
-        val error = assertIs<AgentResponse.Error>(response)
-        assertEquals("Exceeded maximum steps (1)", error.message)
-        assertEquals(AgentState.ERROR, runner.state)
+        assertEquals(AgentResponse.Final("partial findings"), response)
+        assertEquals(AgentState.DONE, runner.state)
+        assertTrue(provider.requests.last().tools.isEmpty())
     }
 
     @Test

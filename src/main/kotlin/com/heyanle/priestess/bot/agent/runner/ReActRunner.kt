@@ -8,6 +8,8 @@ import com.heyanle.priestess.bot.provider.model.LLMRequest
 import com.heyanle.priestess.bot.tool.AgentToolContext
 import com.heyanle.priestess.bot.tool.FunctionTool
 import com.heyanle.priestess.bot.tool.ToolCase
+import com.heyanle.priestess.bot.tool.ToolResultOverflowStore
+import com.heyanle.priestess.bot.pipeline.PermissionGroup
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -26,6 +28,7 @@ class ReActRunner(
     private val provider: ChatProvider,
     private val toolCase: ToolCase,
     private val contextManager: ContextManager,
+    private val overflowStore: ToolResultOverflowStore = ToolResultOverflowStore(),
     private val hooks: AgentHooks? = null,
 ) : AgentRunner {
 
@@ -87,10 +90,7 @@ class ReActRunner(
         }
 
         if (state == AgentState.RUNNING) {
-            val error = AgentResponse.Error("Exceeded maximum steps (${context.agent.maxSteps})")
-            state = AgentState.ERROR
-            hooks?.onAgentError(context, error)
-            return@withLock error
+            return@withLock forceFinalResponseAfterMaxSteps()
         }
 
         return@withLock finalResponseCache
@@ -121,7 +121,9 @@ class ReActRunner(
                 systemMessage = systemMessage,
             )
 
-            val tools = workspaceScopedTools().map { it.schema.toOpenAIFormat() }
+            val tools = workspaceScopedTools().map { tool ->
+                tool.schema.toOpenAIFormat(toolDescription(tool))
+            }
             val request = LLMRequest(
                 model = context.agent.model,
                 messages = compressed.toList(),
@@ -191,7 +193,7 @@ class ReActRunner(
             val toolMsg = ConversationMessage.tool(
                 toolCallId = tc.id,
                 name = tc.name,
-                content = if (result.success) result.output else result.error,
+                content = if (result.success) materializeResult(result.output) else result.error,
             )
             context.messages.add(toolMsg)
 
@@ -219,8 +221,40 @@ class ReActRunner(
         return final
     }
 
+    private suspend fun forceFinalResponseAfterMaxSteps(): AgentResponse {
+        context.messages.add(ConversationMessage.user(MAX_STEPS_REACHED_PROMPT))
+        return try {
+            refreshSystemMessage()
+            val compressed = contextManager.compress(
+                agent = context.agent,
+                messages = context.messages,
+                systemMessage = systemMessage,
+            )
+            val response = provider.textChat(
+                LLMRequest(model = context.agent.model, messages = compressed, tools = emptyList()),
+            )
+            val content = response.content.ifBlank { "工具调用次数已达到上限，当前无法继续执行工具。" }
+            val final = AgentResponse.Final(content)
+            context.messages.add(ConversationMessage.assistant(content))
+            finalResponseCache = final
+            state = AgentState.DONE
+            hooks?.onAgentDone(context, final)
+            final
+        } catch (e: Exception) {
+            val final = AgentResponse.Final(
+                "已达到工具调用上限，且最终总结请求未完成。请基于已执行的工具结果继续处理，或简化后重试。",
+            )
+            context.messages.add(ConversationMessage.assistant(final.content))
+            finalResponseCache = final
+            state = AgentState.DONE
+            hooks?.onAgentDone(context, final)
+            final
+        }
+    }
+
     private fun buildToolContext(): AgentToolContext {
         return AgentToolContext(
+            conversationId = context.conversationId,
             platform = context.platform,
             session = context.session,
             agentName = context.agent.name,
@@ -228,17 +262,48 @@ class ReActRunner(
             metadata = context.metadata,
             scopedTools = context.scopedTools,
             skillState = context.skillState,
+            permissionGroup = context.permissionGroup,
         )
+    }
+
+    private fun materializeResult(content: String): String {
+        if (estimateTokens(content) <= context.agent.toolResultInlineTokens) return content
+        val stored = runCatching {
+            overflowStore.store(context.conversationId, content, context.agent.toolResultTtlSeconds, context.agent.toolResultMaxBytes, context.agent.toolResultStoreMaxBytes)
+        }.getOrNull()
+        val preview = preview(content, context.agent.toolResultPreviewTokens)
+        val sourceTruncated = Regex("\\\"truncated\\\"\\s*:\\s*true").containsMatchIn(content)
+        val sourceMarker = if (sourceTruncated) " source_truncated=true" else ""
+        return if (stored != null) {
+            "$preview\n\n[TOOL_RESULT_OVERFLOW result_id=${stored.id} total_code_points=${stored.totalCodePoints}$sourceMarker. Use read_tool_result with this result_id and an offset to read more.]"
+        } else {
+            "$preview\n\n[TOOL_RESULT_OVERFLOW_UNAVAILABLE The full output could not be retained.]"
+        }
+    }
+
+    private fun preview(content: String, budget: Int): String {
+        var end = content.length
+        while (end > 0 && estimateTokens(content.substring(0, end)) > budget) end = (end / 2).coerceAtLeast(0)
+        return content.substring(0, end)
+    }
+
+    private fun estimateTokens(text: String): Int {
+        val chinese = text.count { it in '\u4e00'..'\u9fff' || it in '\u3400'..'\u4dbf' }
+        return (chinese / 1.5 + (text.length - chinese) / 4.0).toInt().coerceAtLeast(1)
     }
 
     private fun workspaceScopedTools(): List<FunctionTool> {
         val allowed = workspaceToolNames()
         val tools = (toolCase.getAll() + context.scopedTools)
             .distinctBy { it.schema.name }
-        return if (allowed == null) {
+        val workspaceVisible = if (allowed == null) {
             tools
         } else {
             tools.filter { it.schema.name in allowed }
+        }
+        return workspaceVisible.filter { tool ->
+            tool.schema.requiredPermissionGroup != PermissionGroup.SUPER_ADMIN ||
+                context.permissionGroup.satisfies(PermissionGroup.SUPER_ADMIN)
         }
     }
 
@@ -295,17 +360,30 @@ class ReActRunner(
                 append(". ")
                 append(tool.schema.name)
                 append(" - ")
-                append(tool.schema.description)
+                append(toolDescription(tool))
             }
         }
     }
 
     private fun renderSkillBlock(): String {
         return buildString {
-            append("Available skills: ")
-            append(context.skillState.availableNames.joinToString(", ").ifBlank { "none" })
+            append("Available skills:\n")
+            append(context.skillState.renderAvailableSkillBlock())
             append("\n")
             append(context.skillState.renderLoadedSkillBlock())
         }
+    }
+
+    private fun toolDescription(tool: FunctionTool): String {
+        val required = tool.schema.requiredPermissionGroup
+        return if (required == PermissionGroup.ADMIN && !context.permissionGroup.satisfies(required)) {
+            tool.schema.description + " 当前权限不足：需要 $required。"
+        } else {
+            tool.schema.description
+        }
+    }
+
+    private companion object {
+        const val MAX_STEPS_REACHED_PROMPT = "Maximum tool call limit reached. Stop calling tools and, based on the information already gathered, give the user a concise final answer."
     }
 }

@@ -1,5 +1,7 @@
 package com.heyanle.priestess.bot.config
 
+import kotlinx.coroutines.flow.map
+
 /**
  * 配置模块门面，向其他模块提供读取、更新、持久化和备份恢复能力。
  *
@@ -15,6 +17,8 @@ class ConfigCase(
     val providerConfigsFlow = controller.providerConfigsFlow
     val agentConfigFlow = controller.agentConfigFlow
     val pipelineConfigFlow = controller.pipelineConfigFlow
+    val commandConfigFlow = configFlow.map { it.command }
+    val permissionConfigFlow = configFlow.map { it.permission }
     val serverConfigFlow = controller.serverConfigFlow
     val pluginConfigFlow = controller.pluginConfigFlow
     val subAgentConfigFlow = controller.subAgentConfigFlow

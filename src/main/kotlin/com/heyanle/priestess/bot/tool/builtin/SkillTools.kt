@@ -7,6 +7,7 @@ import com.heyanle.priestess.bot.tool.ToolParameters
 import com.heyanle.priestess.bot.tool.ToolResult
 import com.heyanle.priestess.bot.tool.ToolRiskLevel
 import com.heyanle.priestess.bot.tool.ToolSchema
+import com.heyanle.priestess.bot.tool.ToolPolicyDenialCode
 
 class UseSkillTool : FunctionTool() {
     override val schema = ToolSchema(
@@ -27,6 +28,15 @@ class UseSkillTool : FunctionTool() {
         val name = args["name"]?.trim().orEmpty()
         if (name.isBlank()) {
             return ToolResult.error("name is required", "VALIDATION_ERROR")
+        }
+        val required = context.skillState.requiredPermissionFor(name)
+        if (required != null && !context.permissionGroup.satisfies(required)) {
+            return ToolResult.error(
+                "PERMISSION_DENIED[${ToolPolicyDenialCode.INSUFFICIENT_PERMISSION}]: " +
+                    (context.metadata["permissionDeniedMessage"] ?: "抱歉，当前权限不足，无法执行此操作。") +
+                    " current=${context.permissionGroup} required=$required",
+                "PERMISSION_DENIED",
+            )
         }
         val loaded = context.skillState.load(name)
             ?: return ToolResult.error(

@@ -42,6 +42,39 @@ class WorkspaceController(
         snapshots[id]
     }
 
+    /**
+     * Resolves a prepared workspace for a message. An explicit workspace id wins;
+     * otherwise the most specific configured resolution rule is used, followed by
+     * the configured default workspace.
+     */
+    fun resolve(context: WorkspaceResolutionContext = WorkspaceResolutionContext()): WorkspaceResolution {
+        val settings = source.load()
+        val requestedId = context.metadata["workspace_id"]
+            ?: context.metadata["workspaceId"]
+        val selected = synchronized(lock) {
+            requestedId
+                ?.takeIf { it.isNotBlank() }
+                ?.let(snapshots::get)
+                ?.let { it to "metadata workspace_id" }
+                ?: settings.workspaces
+                    .asSequence()
+                    .filter { it.enabled }
+                    .sortedByDescending(::resolutionSpecificity)
+                    .firstOrNull { it.matches(context) }
+                    ?.let { config -> snapshots[config.id]?.let { it to "workspace resolution rule" } }
+                ?: settings.workspaces
+                    .firstOrNull { it.isDefault && it.enabled }
+                    ?.let { config -> snapshots[config.id]?.let { it to "default workspace" } }
+                ?: snapshots[WorkspaceConfig.DEFAULT_WORKSPACE_ID]?.let { it to "default workspace" }
+                ?: snapshots.values.firstOrNull()?.let { it to "first prepared workspace" }
+        } ?: error("No prepared workspace is available")
+        return WorkspaceResolution(
+            snapshot = selected.first,
+            reason = selected.second,
+            lease = WorkspaceSnapshotLease(this, selected.first),
+        )
+    }
+
     fun prepare(workspaceDir: String, reason: String): WorkspaceResolution {
         val settings = source.load()
         val candidate = buildSnapshotForDirectory(workspaceDir, settings, settings.diagnostics)
@@ -393,6 +426,21 @@ class WorkspaceController(
             ?.let { Path.of(it).toAbsolutePath().normalize().toString() }
             .orEmpty()
     }
+
+    private fun WorkspaceConfig.matches(context: WorkspaceResolutionContext): Boolean {
+        val rule = resolution
+        return rule.platformNames.matchesOrEmpty(context.platformName) &&
+            rule.sessionIds.matchesOrEmpty(context.sessionId) &&
+            rule.userIds.matchesOrEmpty(context.userId) &&
+            (rule.platformNames.isNotEmpty() || rule.sessionIds.isNotEmpty() || rule.userIds.isNotEmpty())
+    }
+
+    private fun resolutionSpecificity(config: WorkspaceConfig): Int {
+        val rule = config.resolution
+        return listOf(rule.platformNames, rule.sessionIds, rule.userIds).count { it.isNotEmpty() }
+    }
+
+    private fun List<String>.matchesOrEmpty(value: String): Boolean = isEmpty() || value in this
 
     private fun resolveWorkspaceId(
         normalizedRoot: String,

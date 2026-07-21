@@ -31,6 +31,7 @@ import com.heyanle.priestess.bot.observability.ObservabilityCase
 import com.heyanle.priestess.bot.persona.PersonaCase
 import com.heyanle.priestess.bot.persona.PersonaController
 import com.heyanle.priestess.bot.persona.PersonaMemoryInjector
+import com.heyanle.priestess.bot.persona.PersonaErrorMessages
 import com.heyanle.priestess.bot.persona.PersonaUpsertRequest
 import com.heyanle.priestess.bot.plugin.PluginCase
 import com.heyanle.priestess.bot.plugin.PluginExtensionRegistry
@@ -671,10 +672,12 @@ class DashboardRoutesTest {
                     boundaries = listOf("Do not leak secrets"),
                     systemPromptTemplate = "Ask clarifying questions.",
                     agentNames = listOf("dashboard-agent"),
+                    errorMessages = PersonaErrorMessages(permissionDenied = "Permission required."),
                 ),
             )
         }.body<com.heyanle.priestess.bot.persona.Persona>()
         assertEquals("Careful Assistant", persona.name)
+        assertEquals("Permission required.", persona.errorMessages.permissionDenied)
 
         val personas = client.get("/api/personas?workspaceId=default").body<PersonaListResponse>()
         assertEquals(listOf(persona.id), personas.personas.map { it.id })

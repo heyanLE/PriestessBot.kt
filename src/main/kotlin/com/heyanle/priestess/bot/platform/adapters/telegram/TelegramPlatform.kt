@@ -6,10 +6,13 @@ import io.ktor.client.call.*
 import io.ktor.client.engine.cio.*
 import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.request.*
+import io.ktor.client.statement.HttpResponse
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
 import kotlinx.coroutines.*
 import kotlinx.serialization.json.*
+import io.github.oshai.kotlinlogging.KotlinLogging
+import java.nio.channels.UnresolvedAddressException
 
 class TelegramConfig(
     val token: String = "",
@@ -19,7 +22,10 @@ class TelegramConfig(
 
 class TelegramPlatform(
     private val config: TelegramConfig = TelegramConfig(),
+    private val clientFactory: () -> HttpClient = { createDefaultClient() },
 ) : Platform() {
+
+    private val logger = KotlinLogging.logger {}
 
     override val metadata = PlatformMetadata(
         name = config.name,
@@ -31,9 +37,7 @@ class TelegramPlatform(
     private var offset: Long = 0
     private val baseUrl: String get() = "https://api.telegram.org/bot${config.token}"
     @Volatile private var _client: HttpClient? = null
-    private val client: HttpClient get() = _client ?: HttpClient(CIO) {
-        install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
-    }.also { _client = it }
+    private val client: HttpClient get() = _client ?: clientFactory().also { _client = it }
 
     override suspend fun run(): Job {
         require(config.token.isNotBlank()) { "Telegram bot token must be configured" }
@@ -62,64 +66,75 @@ class TelegramPlatform(
     override suspend fun sendMessage(session: MessageSession, chain: MessageChain): String? {
         val rawText = chain.textContent
         require(rawText.isNotBlank()) { "Message text must not be blank" }
-        val htmlText = markdownToTelegramHtml(rawText)
-        val response = client.post("$baseUrl/sendMessage") {
-            contentType(ContentType.Application.Json)
-            setBody(
-                buildJsonObject {
-                    put("chat_id", session.id)
-                    put("text", htmlText)
-                    put("parse_mode", "HTML")
-                },
-            )
-        }
-        val body = response.body<JsonObject>()
-        val ok = body["ok"]?.jsonPrimitive?.booleanOrNull ?: true
-        if (!ok) {
-            // HTML 解析失败，回退纯文本
-            val fallbackResponse = client.post("$baseUrl/sendMessage") {
-                contentType(ContentType.Application.Json)
-                setBody(
-                    buildJsonObject {
-                        put("chat_id", session.id)
-                        put("text", rawText)
-                    },
-                )
+        var firstMessageId: String? = null
+        for (chunk in TelegramMessageChunker.split(rawText, RICH_MESSAGE_MAX_CODE_POINTS)) {
+            val body = callTelegram("sendRichMessage", buildJsonObject {
+                put("chat_id", session.id)
+                put("rich_message", buildJsonObject { put("markdown", chunk) })
+            })
+
+            if (body.isSuccessful()) {
+                firstMessageId = firstMessageId ?: body.messageId()
+                continue
             }
-            val fallbackBody = fallbackResponse.body<JsonObject>()
-            return fallbackBody["result"]?.jsonObject?.get("message_id")?.jsonPrimitive?.content
+
+            logApiFailure("sendRichMessage", body)
+            firstMessageId = firstMessageId ?: sendPlainText(session, chunk)
         }
-        return body["result"]?.jsonObject?.get("message_id")?.jsonPrimitive?.content
+        return firstMessageId
     }
 
     /**
-     * 将 LLM 常见的 Markdown 语法转为 Telegram HTML 格式。
-     * 转换顺序：
-     *   HTML 转义 → 代码块 → 行内代码 → 链接 → 粗体 → 斜体 → 删除线 → 下划线 → 剧透
-     * 必须在粗体/斜体之前处理链接，避免 URL 中的特殊字符被误格式化。
+     * Rich Messages 仅在较新的 Telegram Bot API 中可用。不可用或内容被拒绝时，
+     * 以普通文本作为可靠降级，避免旧的 HTML 正则转换再次损坏消息内容。
      */
-    private fun markdownToTelegramHtml(text: String): String {
-        return text
-            // 1. 转义 HTML 保留字符（必须在所有格式化之前）
-            .replace("&", "&amp;")
-            .replace("<", "&lt;")
-            .replace(">", "&gt;")
-            // 2. 代码块 ```...```（必须在行内代码之前）
-            .replace(Regex("```(\\w*)\\n?([\\s\\S]*?)```")) { "<pre>${it.groupValues[2].trim()}</pre>" }
-            // 3. 行内代码 `...`
-            .replace(Regex("`([^`]+)`")) { "<code>${it.groupValues[1]}</code>" }
-            // 4. 链接 [text](url)（在粗体/斜体之前，避免 URL 特殊字符被格式化）
-            .replace(Regex("\\[([^\\]]+)\\]\\(([^)]+)\\)")) { "<a href=\"${it.groupValues[2]}\">${it.groupValues[1]}</a>" }
-            // 5. 粗体 **text**
-            .replace(Regex("\\*\\*(.+?)\\*\\*")) { "<b>${it.groupValues[1]}</b>" }
-            // 6. 斜体 *text*（排除 ** 双星号）
-            .replace(Regex("(?<!\\*)\\*(?!\\*)(.+?)(?<!\\*)\\*(?!\\*)")) { "<i>${it.groupValues[1]}</i>" }
-            // 7. 删除线 ~~text~~
-            .replace(Regex("~~(.+?)~~")) { "<s>${it.groupValues[1]}</s>" }
-            // 8. 下划线 __text__（__ 与 ** 不冲突，分属不同字符）
-            .replace(Regex("__(.+?)__")) { "<u>${it.groupValues[1]}</u>" }
-            // 9. 剧透 ||text||（Telegram 特有）
-            .replace(Regex("\\|\\|(.+?)\\|\\|")) { "<tg-spoiler>${it.groupValues[1]}</tg-spoiler>" }
+    private suspend fun sendPlainText(session: MessageSession, text: String): String? {
+        var firstMessageId: String? = null
+        for (chunk in TelegramMessageChunker.split(text, BASIC_MESSAGE_MAX_CODE_POINTS)) {
+            val body = callTelegram("sendMessage", buildJsonObject {
+                put("chat_id", session.id)
+                put("text", chunk)
+            })
+            if (!body.isSuccessful()) {
+                logApiFailure("sendMessage", body)
+                throw TelegramApiException("sendMessage", body.errorDescription())
+            }
+            firstMessageId = firstMessageId ?: body.messageId()
+        }
+        return firstMessageId
+    }
+
+    private suspend fun callTelegram(method: String, request: JsonObject): JsonObject =
+        postTelegram(method, request).body()
+
+    private fun JsonObject.isSuccessful(): Boolean =
+        this["ok"]?.jsonPrimitive?.booleanOrNull == true
+
+    private fun JsonObject.messageId(): String? =
+        this["result"]?.jsonObject?.get("message_id")?.jsonPrimitive?.content
+
+    private fun JsonObject.errorDescription(): String =
+        this["description"]?.jsonPrimitive?.content ?: "Telegram API returned an unsuccessful response"
+
+    private fun logApiFailure(method: String, body: JsonObject) {
+        val errorCode = body["error_code"]?.jsonPrimitive?.content ?: "unknown"
+        logger.warn { "Telegram API call failed method=$method errorCode=$errorCode description=${body.errorDescription()}" }
+    }
+
+    private suspend fun postTelegram(method: String, body: JsonObject): HttpResponse {
+        var lastFailure: UnresolvedAddressException? = null
+        repeat(3) { attempt ->
+            try {
+                return client.post("$baseUrl/$method") {
+                    contentType(ContentType.Application.Json)
+                    setBody(body)
+                }
+            } catch (error: UnresolvedAddressException) {
+                lastFailure = error
+                if (attempt < 2) delay((attempt + 1) * 1_000L)
+            }
+        }
+        throw requireNotNull(lastFailure)
     }
 
     private suspend fun fetchUpdates(): List<JsonObject> {
@@ -136,10 +151,11 @@ class TelegramPlatform(
         return updates.mapNotNull { it.jsonObject }
     }
 
-    private fun parseUpdate(update: JsonObject): MessageEvent? {
+    internal fun parseUpdate(update: JsonObject): MessageEvent? {
         val message = update["message"]?.jsonObject ?: update["channel_post"]?.jsonObject ?: return null
         val chat = message["chat"]?.jsonObject ?: return null
         val chatId = chat["id"]?.jsonPrimitive?.content ?: return null
+        val senderId = message["from"]?.jsonObject?.get("id")?.jsonPrimitive?.content
         val chatType = when (chat["type"]?.jsonPrimitive?.content) {
             "private" -> SessionType.PRIVATE
             "group", "supergroup" -> SessionType.GROUP
@@ -154,9 +170,26 @@ class TelegramPlatform(
                 id = chatId,
                 type = chatType,
                 platformName = metadata.name,
-                metadata = chat.mapValues { it.value.jsonPrimitive.content },
+                metadata = chat.mapValues { it.value.jsonPrimitive.content } + buildMap {
+                    senderId?.let {
+                        put("senderId", it)
+                        put("userId", it)
+                    }
+                },
             ),
             chain = MessageChain.text(text),
         )
+    }
+
+    private class TelegramApiException(method: String, description: String) :
+        IllegalStateException("Telegram API call failed method=$method description=$description")
+
+    private companion object {
+        const val RICH_MESSAGE_MAX_CODE_POINTS = 32_768
+        const val BASIC_MESSAGE_MAX_CODE_POINTS = 4_096
+
+        fun createDefaultClient(): HttpClient = HttpClient(CIO) {
+            install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
+        }
     }
 }

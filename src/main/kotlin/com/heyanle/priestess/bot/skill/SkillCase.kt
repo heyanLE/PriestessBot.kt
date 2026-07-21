@@ -1,6 +1,7 @@
 package com.heyanle.priestess.bot.skill
 
 import com.heyanle.priestess.bot.workspace.WorkspaceSnapshot
+import com.heyanle.priestess.bot.pipeline.PermissionGroup
 
 /**
  * 技能模块门面，负责对外提供技能分发、注册和工作区技能提示状态。
@@ -12,18 +13,33 @@ class SkillCase(
     fun register(skill: Skill) = controller.register(skill)
     fun getAll(): List<Skill> = controller.getAll()
 
-    fun getWorkspaceSkillState(snapshot: WorkspaceSnapshot): PipelineSkillState {
-        return PipelineSkillState(getWorkspaceSkillReferences(snapshot))
+    fun getWorkspaceSkillState(
+        snapshot: WorkspaceSnapshot,
+        permissionGroup: PermissionGroup = PermissionGroup.OPERATOR,
+    ): PipelineSkillState {
+        return PipelineSkillState(getWorkspaceSkillReferences(snapshot, permissionGroup), permissionGroup)
     }
 
-    fun getWorkspaceSkillReferences(snapshot: WorkspaceSnapshot): List<SkillPromptReference> {
-        return snapshot.skillDescriptors.map { descriptor ->
+    fun getWorkspaceSkillReferences(
+        snapshot: WorkspaceSnapshot,
+        permissionGroup: PermissionGroup = PermissionGroup.OPERATOR,
+    ): List<SkillPromptReference> {
+        return snapshot.skillDescriptors
+            .filter { descriptor ->
+                descriptor.requiredPermissionGroup != PermissionGroup.SUPER_ADMIN ||
+                    permissionGroup.satisfies(PermissionGroup.SUPER_ADMIN)
+            }
+            .map { descriptor ->
             SkillPromptReference(
                 name = descriptor.name,
-                description = descriptor.description,
+                description = descriptor.description + if (
+                    descriptor.requiredPermissionGroup == PermissionGroup.ADMIN &&
+                    !permissionGroup.satisfies(PermissionGroup.ADMIN)
+                ) "\n当前权限不足：需要 ADMIN。" else "",
                 markdownPath = descriptor.skillMarkdownPath,
                 inlineMarkdown = descriptor.inlineMarkdown,
                 settings = descriptor.settings,
+                requiredPermissionGroup = descriptor.requiredPermissionGroup,
             )
         }
     }

@@ -3,6 +3,7 @@ package com.heyanle.priestess.bot.tool.builtin
 import com.heyanle.priestess.bot.skill.PipelineSkillState
 import com.heyanle.priestess.bot.skill.SkillPromptReference
 import com.heyanle.priestess.bot.tool.AgentToolContext
+import com.heyanle.priestess.bot.pipeline.PermissionGroup
 import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -47,5 +48,32 @@ class SkillToolsTest {
         assertEquals(emptyList(), state.loadedNames)
         assertFalse(unloadedAgain.success)
         assertEquals("SKILL_NOT_LOADED", unloadedAgain.errorCode)
+    }
+
+    @Test
+    fun `use skill rejects unavailable administrator skill without loading it`() = runBlocking {
+        val state = PipelineSkillState(
+            listOf(
+                SkillPromptReference(
+                    name = "admin-skill",
+                    inlineMarkdown = "# Skill: admin",
+                    requiredPermissionGroup = PermissionGroup.ADMIN,
+                ),
+            ),
+            PermissionGroup.OPERATOR,
+        )
+        val result = UseSkillTool().execute(
+            AgentToolContext(
+                skillState = state,
+                permissionGroup = PermissionGroup.OPERATOR,
+                metadata = mapOf("permissionDeniedMessage" to "denied"),
+            ),
+            mapOf("name" to "admin-skill"),
+        )
+
+        assertFalse(result.success)
+        assertEquals("PERMISSION_DENIED", result.errorCode)
+        assertTrue(result.error.contains("denied"))
+        assertTrue(state.loadedNames.isEmpty())
     }
 }

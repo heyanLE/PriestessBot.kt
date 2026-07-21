@@ -74,6 +74,9 @@ class PersonaController(
                 systemPromptTemplate = request.systemPromptTemplate.trim(),
                 enabled = request.enabled,
                 agentNames = normalizedAgentNames,
+                errorMessages = request.errorMessages.copy(
+                    permissionDenied = request.errorMessages.permissionDenied.trim(),
+                ),
                 createdAt = createdAt,
                 updatedAt = now,
             )
@@ -88,6 +91,7 @@ class PersonaController(
                     it[systemPromptTemplate] = persona.systemPromptTemplate
                     it[enabled] = persona.enabled
                     it[agentNames] = json.encodeToString(persona.agentNames)
+                    it[errorMessages] = json.encodeToString(persona.errorMessages)
                     it[PersonasTable.createdAt] = persona.createdAt
                     it[updatedAt] = persona.updatedAt
                     it[deletedAt] = persona.deletedAt
@@ -102,6 +106,7 @@ class PersonaController(
                     it[systemPromptTemplate] = persona.systemPromptTemplate
                     it[enabled] = persona.enabled
                     it[agentNames] = json.encodeToString(persona.agentNames)
+                    it[errorMessages] = json.encodeToString(persona.errorMessages)
                     it[updatedAt] = persona.updatedAt
                     it[deletedAt] = null
                 }
@@ -148,6 +153,7 @@ class PersonaController(
             systemPromptTemplate = this[PersonasTable.systemPromptTemplate],
             enabled = this[PersonasTable.enabled],
             agentNames = json.decodeFromString(this[PersonasTable.agentNames]),
+            errorMessages = json.decodeFromString(this[PersonasTable.errorMessages]),
             createdAt = this[PersonasTable.createdAt],
             updatedAt = this[PersonasTable.updatedAt],
             deletedAt = this[PersonasTable.deletedAt],

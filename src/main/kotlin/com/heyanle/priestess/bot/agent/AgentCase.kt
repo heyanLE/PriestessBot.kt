@@ -6,6 +6,7 @@ import com.heyanle.priestess.bot.agent.runner.ReActRunner
 import com.heyanle.priestess.bot.config.AgentConfig
 import com.heyanle.priestess.bot.provider.ChatProvider
 import com.heyanle.priestess.bot.tool.ToolCase
+import com.heyanle.priestess.bot.tool.ToolResultOverflowStore
 
 /**
  * Agent 模块门面，向外提供运行时 Agent 创建和执行能力。
@@ -13,6 +14,7 @@ import com.heyanle.priestess.bot.tool.ToolCase
 class AgentCase(
     private val controller: AgentController = AgentController(),
     private val contextManager: ContextManager = ContextManager(TokenCounter()),
+    private val overflowStore: ToolResultOverflowStore = ToolResultOverflowStore(),
 ) {
     fun createAgent(config: AgentConfig): Agent {
         return controller.createAgent(config)
@@ -29,6 +31,7 @@ class AgentCase(
             provider = provider,
             toolCase = toolCase,
             contextManager = contextManager,
+            overflowStore = overflowStore,
             hooks = hooks,
         ).stepUntilDone()
     }

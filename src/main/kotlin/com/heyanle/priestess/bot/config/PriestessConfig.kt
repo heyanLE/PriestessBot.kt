@@ -12,6 +12,8 @@ data class PriestessConfig(
     val agent: AgentConfig = AgentConfig(),
     val database: DatabaseConfig = DatabaseConfig(),
     val pipeline: PipelineConfig = PipelineConfig(),
+    val command: CommandConfig = CommandConfig(),
+    val permission: PermissionConfig = PermissionConfig(),
     val server: ServerConfig = ServerConfig(),
     val plugins: PluginConfig = PluginConfig(),
     val subAgents: SubAgentOrchestrationConfig = SubAgentOrchestrationConfig(),

@@ -22,6 +22,7 @@ class PersonaControllerTest {
                 boundaries = listOf(" no secrets ", "", "no secrets", "cite uncertainty"),
                 systemPromptTemplate = "  Prefer short answers.  ",
                 agentNames = listOf(" assistant ", "", "assistant", "reviewer"),
+                errorMessages = PersonaErrorMessages(permissionDenied = " denied "),
             ),
         )
         personas.upsert(
@@ -41,6 +42,7 @@ class PersonaControllerTest {
         assertEquals(listOf("no secrets", "cite uncertainty"), loaded.boundaries)
         assertEquals("Prefer short answers.", loaded.systemPromptTemplate)
         assertEquals(listOf("assistant", "reviewer"), loaded.agentNames)
+        assertEquals("denied", loaded.errorMessages.permissionDenied)
         assertTrue(loaded.enabled)
     }
 

@@ -113,6 +113,7 @@ enum class ToolPolicyDenialCode {
     MISSING_CAPABILITY,
     UNAVAILABLE_DEPENDENCY,
     CONFIRMATION_REQUIRED,
+    INSUFFICIENT_PERMISSION,
 }
 
 typealias ToolPermission = ToolPolicyDecision

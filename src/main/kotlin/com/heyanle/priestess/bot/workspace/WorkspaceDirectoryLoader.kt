@@ -158,6 +158,7 @@ internal class WorkspaceDirectoryLoader(
                         directoryPath = skillDir.toAbsolutePath().normalize().toString(),
                         skillMarkdownPath = markdownPath.toAbsolutePath().normalize().toString(),
                         settings = config?.settings.orEmpty(),
+                        requiredPermissionGroup = config?.requiredPermissionGroup ?: com.heyanle.priestess.bot.pipeline.PermissionGroup.OPERATOR,
                     )
                 }
                 .toList()

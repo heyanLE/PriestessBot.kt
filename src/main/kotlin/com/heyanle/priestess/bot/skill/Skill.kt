@@ -1,5 +1,7 @@
 package com.heyanle.priestess.bot.skill
 
+import com.heyanle.priestess.bot.pipeline.PermissionGroup
+
 /**
  * 技能接口，用于判断并处理特定类型的用户消息。
  *
@@ -26,6 +28,9 @@ interface Skill {
      * 技能优先级，数值越高越先被评估。
      */
     val priority: Int
+
+    val requiredPermissionGroup: PermissionGroup
+        get() = PermissionGroup.OPERATOR
 
     /**
      * 判断该技能是否可以处理给定消息。

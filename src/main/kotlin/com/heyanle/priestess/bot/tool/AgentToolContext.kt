@@ -3,6 +3,7 @@ package com.heyanle.priestess.bot.tool
 import com.heyanle.priestess.bot.platform.MessageSession
 import com.heyanle.priestess.bot.platform.Platform
 import com.heyanle.priestess.bot.skill.PipelineSkillState
+import com.heyanle.priestess.bot.pipeline.PermissionGroup
 
 /**
  * Context passed to tool execution.
@@ -12,6 +13,7 @@ import com.heyanle.priestess.bot.skill.PipelineSkillState
  * in the agent loop is richer; tools only need this subset.
  */
 data class AgentToolContext(
+    val conversationId: String = "",
     /**
      * The current platform instance for sending messages.
      */
@@ -48,4 +50,5 @@ data class AgentToolContext(
      * this state so later LLM turns include the loaded SKILL.md prompt block.
      */
     val skillState: PipelineSkillState = PipelineSkillState(),
+    val permissionGroup: PermissionGroup = PermissionGroup.OPERATOR,
 )

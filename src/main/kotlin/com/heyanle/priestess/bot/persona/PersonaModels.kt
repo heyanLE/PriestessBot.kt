@@ -2,6 +2,11 @@ package com.heyanle.priestess.bot.persona
 
 import kotlinx.serialization.Serializable
 
+@Serializable
+data class PersonaErrorMessages(
+    val permissionDenied: String = "",
+)
+
 /**
  * 人设档案，描述智能体在指定工作区中的表达风格和行为边界。
  */
@@ -16,6 +21,7 @@ data class Persona(
     val systemPromptTemplate: String = "",
     val enabled: Boolean = true,
     val agentNames: List<String> = emptyList(),
+    val errorMessages: PersonaErrorMessages = PersonaErrorMessages(),
     val createdAt: Long,
     val updatedAt: Long,
     val deletedAt: Long? = null,
@@ -34,4 +40,5 @@ data class PersonaUpsertRequest(
     val systemPromptTemplate: String = "",
     val enabled: Boolean = true,
     val agentNames: List<String> = emptyList(),
+    val errorMessages: PersonaErrorMessages = PersonaErrorMessages(),
 )

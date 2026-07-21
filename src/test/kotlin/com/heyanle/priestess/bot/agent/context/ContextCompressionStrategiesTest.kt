@@ -101,4 +101,32 @@ class ContextCompressionStrategiesTest {
         assertTrue(result.any { it.role == "assistant" && it.toolCalls?.any { tc -> tc.id == "call-1" } == true })
         assertTrue(result.any { it.role == "tool" && it.toolCallId == "call-1" && it.content == "tool output" })
     }
+
+    @Test
+    fun `context manager removes incomplete persisted tool-call rounds without compression`() = runBlocking {
+        val system = ConversationMessage.system("system")
+        val first = ToolCall(id = "call-1", name = "first", arguments = "{}")
+        val second = ToolCall(id = "call-2", name = "second", arguments = "{}")
+        val messages = listOf(
+            system,
+            ConversationMessage.user("older request"),
+            ConversationMessage.assistant(content = "", toolCalls = listOf(first, second)),
+            ConversationMessage.tool(toolCallId = "call-1", name = "first", content = "only one result"),
+            ConversationMessage.assistant("previous final"),
+            ConversationMessage.user("current request"),
+        )
+
+        val result = ContextManager(tokenCounter).compress(
+            agent = testAgent().copy(maxContextTokens = 10_000, maxContextRounds = 10),
+            messages = messages,
+            systemMessage = system,
+        )
+
+        assertEquals(
+            listOf("system", "user", "assistant", "user"),
+            result.map { it.role },
+        )
+        assertEquals(listOf("system", "older request", "previous final", "current request"), result.map { it.content })
+        assertTrue(result.none { it.role == "tool" })
+    }
 }

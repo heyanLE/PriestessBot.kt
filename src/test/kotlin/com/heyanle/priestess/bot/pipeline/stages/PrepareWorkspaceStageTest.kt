@@ -26,21 +26,14 @@ import kotlin.test.assertNotNull
 
 class PrepareWorkspaceStageTest {
     @Test
-    fun `message workspace dir override wins over platform and config defaults`() = runBlocking {
+    fun `message workspace dir override wins over config default`() = runBlocking {
         val configDir = createWorkspaceDir("config-workspace", "Config Workspace")
-        val platformDir = createWorkspaceDir("platform-workspace", "Platform Workspace")
         val messageDir = createWorkspaceDir("message-workspace", "Message Workspace")
         val configCase = testConfigCase(
             PriestessConfig(
                 agent = AgentConfig(name = "assistant", model = "test-model"),
                 workspace = WorkspaceRuntimeConfig(defaultDir = configDir),
-                platforms = listOf(
-                    PlatformConfig(
-                        name = "fake-platform",
-                        type = "fake-platform",
-                        config = mapOf("workspace_dir" to platformDir),
-                    ),
-                ),
+                platforms = listOf(PlatformConfig(name = "fake-platform", type = "fake-platform")),
             ),
             prefix = "prepare-workspace-message-override",
         )
@@ -48,7 +41,7 @@ class PrepareWorkspaceStageTest {
         val ctx = pipelineContext(
             metadata = mapOf(
                 "senderId" to "user-1",
-                "workspace_dir" to messageDir,
+                "workspaceDir" to messageDir,
             ),
         )
 
@@ -57,34 +50,6 @@ class PrepareWorkspaceStageTest {
         assertEquals(messageDir, ctx.workspaceRootDir)
         assertEquals("message workspace_dir", ctx.workspaceResolutionReason)
         assertEquals("Message Workspace", assertNotNull(ctx.workspaceSnapshot).name)
-    }
-
-    @Test
-    fun `platform workspace dir override wins over config default`() = runBlocking {
-        val configDir = createWorkspaceDir("config-workspace", "Config Workspace")
-        val platformDir = createWorkspaceDir("platform-workspace", "Platform Workspace")
-        val configCase = testConfigCase(
-            PriestessConfig(
-                agent = AgentConfig(name = "assistant", model = "test-model"),
-                workspace = WorkspaceRuntimeConfig(defaultDir = configDir),
-                platforms = listOf(
-                    PlatformConfig(
-                        name = "fake-platform",
-                        type = "fake-platform",
-                        config = mapOf("workspaceDir" to platformDir),
-                    ),
-                ),
-            ),
-            prefix = "prepare-workspace-platform-override",
-        )
-        val stage = stage(configCase)
-        val ctx = pipelineContext()
-
-        stage.process(ctx)
-
-        assertEquals(platformDir, ctx.workspaceRootDir)
-        assertEquals("platform workspace_dir", ctx.workspaceResolutionReason)
-        assertEquals("Platform Workspace", assertNotNull(ctx.workspaceSnapshot).name)
     }
 
     @Test
@@ -99,6 +64,34 @@ class PrepareWorkspaceStageTest {
                 ),
             ),
             prefix = "prepare-workspace-config-default",
+        )
+        val stage = stage(configCase)
+        val ctx = pipelineContext()
+
+        stage.process(ctx)
+
+        assertEquals(configDir, ctx.workspaceRootDir)
+        assertEquals("config default workspace dir", ctx.workspaceResolutionReason)
+        assertEquals("Config Workspace", assertNotNull(ctx.workspaceSnapshot).name)
+    }
+
+    @Test
+    fun `platform config workspace dir is ignored`() = runBlocking {
+        val configDir = createWorkspaceDir("config-workspace", "Config Workspace")
+        val platformDir = createWorkspaceDir("platform-workspace", "Platform Workspace")
+        val configCase = testConfigCase(
+            PriestessConfig(
+                agent = AgentConfig(name = "assistant", model = "test-model"),
+                workspace = WorkspaceRuntimeConfig(defaultDir = configDir),
+                platforms = listOf(
+                    PlatformConfig(
+                        name = "fake-platform",
+                        type = "fake-platform",
+                        config = mapOf("workspaceDir" to platformDir),
+                    ),
+                ),
+            ),
+            prefix = "prepare-workspace-ignore-platform-config",
         )
         val stage = stage(configCase)
         val ctx = pipelineContext()

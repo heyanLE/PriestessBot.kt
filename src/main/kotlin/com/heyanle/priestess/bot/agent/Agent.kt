@@ -12,4 +12,9 @@ data class Agent(
     val compressStrategy: CompressStrategy = CompressStrategy.ROUND_TRUNCATION,
     val maxContextTokens: Int = 8000,
     val maxContextRounds: Int = 20,
+    val toolResultInlineTokens: Int = 2048,
+    val toolResultPreviewTokens: Int = 512,
+    val toolResultTtlSeconds: Long = 1800,
+    val toolResultMaxBytes: Long = 4 * 1024 * 1024,
+    val toolResultStoreMaxBytes: Long = 64 * 1024 * 1024,
 )

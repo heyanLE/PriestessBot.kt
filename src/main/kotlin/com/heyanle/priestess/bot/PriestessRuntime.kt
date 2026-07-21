@@ -11,6 +11,7 @@ import com.heyanle.priestess.bot.server.ServerCase
 import com.heyanle.priestess.bot.skill.SkillCase
 import com.heyanle.priestess.bot.tool.ToolCase
 import com.heyanle.priestess.bot.workspace.WorkspaceCase
+import com.heyanle.priestess.bot.tool.ToolResultOverflowStore
 import io.github.oshai.kotlinlogging.KotlinLogging
 
 /**
@@ -34,6 +35,7 @@ class PriestessRuntime private constructor(
         observabilityCase: ObservabilityCase,
         databaseCase: DatabaseCase,
         configCase: ConfigCase,
+        overflowStore: ToolResultOverflowStore,
         pipelineDrainTimeoutMillis: Long = PipelineCase.DEFAULT_DRAIN_TIMEOUT_MILLIS,
     ) : this(
         startAction = {
@@ -50,6 +52,7 @@ class PriestessRuntime private constructor(
             StopStep("plugins") { pluginCase.stop() },
             StopStep("providers") { providerCase.stop() },
             StopStep("tools") { toolCase.stop() },
+            StopStep("tool result overflow store") { overflowStore.close() },
             StopStep("skills") { skillCase.stop() },
             StopStep("workspace") { workspaceCase.stop() },
             StopStep("observability") { observabilityCase.stop() },

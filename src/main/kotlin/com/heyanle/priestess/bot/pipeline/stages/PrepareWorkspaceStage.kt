@@ -15,20 +15,11 @@ class PrepareWorkspaceStage(
 
     override suspend fun process(ctx: PipelineContext) = workspaceCase?.let { case ->
         val config = configCase.current()
-        val platformConfig = config.platforms.firstOrNull { candidate ->
-            val configuredName = candidate.name.ifBlank { candidate.type }
-            configuredName == ctx.event.platform.metadata.name || candidate.type == ctx.event.platform.metadata.name
-        }
         val defaultDir = config.workspace.defaultDir
-        val platformDir = platformConfig?.config?.get("workspace_dir")
-            ?: platformConfig?.config?.get("workspaceDir")
         val messageDir = ctx.event.session.metadata["workspaceDir"]
         when {
             !messageDir.isNullOrBlank() -> {
                 ctx.pinWorkspace(case.prepare(messageDir, "message workspace_dir"))
-            }
-            !platformDir.isNullOrBlank() -> {
-                ctx.pinWorkspace(case.prepare(platformDir, "platform workspace_dir"))
             }
             !defaultDir.isNullOrBlank() -> {
                 ctx.pinWorkspace(case.prepare(defaultDir, "config default workspace dir"))

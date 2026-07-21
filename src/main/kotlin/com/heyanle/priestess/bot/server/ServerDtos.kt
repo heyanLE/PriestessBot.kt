@@ -341,6 +341,7 @@ data class PersonaUpsertDto(
     val systemPromptTemplate: String = "",
     val enabled: Boolean = true,
     val agentNames: List<String> = emptyList(),
+    val errorMessages: com.heyanle.priestess.bot.persona.PersonaErrorMessages = com.heyanle.priestess.bot.persona.PersonaErrorMessages(),
 )
 
 /**

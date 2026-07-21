@@ -101,6 +101,7 @@ object PersonasTable : Table("personas") {
     val systemPromptTemplate = text("system_prompt_template")
     val enabled = bool("enabled")
     val agentNames = text("agent_names")
+    val errorMessages = text("error_messages").default("{}")
     val createdAt = long("created_at")
     val updatedAt = long("updated_at")
     val deletedAt = long("deleted_at").nullable()

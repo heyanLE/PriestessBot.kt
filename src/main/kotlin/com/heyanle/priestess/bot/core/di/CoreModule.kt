@@ -24,6 +24,10 @@ import com.heyanle.priestess.bot.pipeline.PipelineController
 import com.heyanle.priestess.bot.persona.PersonaCase
 import com.heyanle.priestess.bot.persona.PersonaController
 import com.heyanle.priestess.bot.persona.PersonaMemoryInjector
+import com.heyanle.priestess.bot.persona.PersonaPermissionDeniedMessageResolver
+import com.heyanle.priestess.bot.pipeline.PermissionDeniedMessageResolver
+import com.heyanle.priestess.bot.pipeline.PermissionResolver
+import com.heyanle.priestess.bot.pipeline.CommandCase
 import com.heyanle.priestess.bot.plugin.PluginCase
 import com.heyanle.priestess.bot.plugin.PluginExtensionRegistry
 import com.heyanle.priestess.bot.plugin.PluginController
@@ -44,6 +48,7 @@ import com.heyanle.priestess.bot.skill.DefaultSkill
 import com.heyanle.priestess.bot.tool.ToolCase
 import com.heyanle.priestess.bot.tool.ToolController
 import com.heyanle.priestess.bot.tool.ToolExecutor
+import com.heyanle.priestess.bot.tool.ToolResultOverflowStore
 import com.heyanle.priestess.bot.tool.builtin.registerBuiltinTools
 import com.heyanle.priestess.bot.workspace.ConfigBackedWorkspaceConfigSource
 import com.heyanle.priestess.bot.workspace.RealWorkspaceMcpToolResolver
@@ -75,6 +80,9 @@ val coreModule = module {
     single { PersonaController(db = get<DatabaseCase>()) }
     single { PersonaCase(controller = get()) }
     single { PersonaMemoryInjector(personaCase = get(), memoryCase = get()) }
+    single<PermissionDeniedMessageResolver> { PersonaPermissionDeniedMessageResolver(personaCase = get()) }
+    single { PermissionResolver { get<ConfigCase>().current().permission } }
+    single { CommandCase() }
     single { ReminderController(db = get<DatabaseCase>()) }
     single { ReminderCase(controller = get()) }
 
@@ -83,7 +91,13 @@ val coreModule = module {
         val scope = this
         val toolCase = ToolCase(
             controller = controller,
-            executorProvider = { ToolExecutor(registry = controller, observabilityCase = scope.get()) },
+            executorProvider = {
+                ToolExecutor(
+                    registry = controller,
+                    observabilityCase = scope.get(),
+                    permissionDeniedMessageResolver = scope.get(),
+                )
+            },
         )
         registerBuiltinTools(
             registry = toolCase,
@@ -93,6 +107,7 @@ val coreModule = module {
             memoryCaseProvider = { get<MemoryCase>() },
             reminderCaseProvider = { get<ReminderCase>() },
             workspaceCaseProvider = { get<WorkspaceCase>() },
+            overflowStore = get(),
         )
         toolCase
     }
@@ -101,9 +116,10 @@ val coreModule = module {
     single { ProviderCase(controller = get()) }
 
     single { TokenCounter() }
+    single { ToolResultOverflowStore() }
     single { ContextManager(tokenCounter = get()) }
     single { AgentController() }
-    single { AgentCase(controller = get(), contextManager = get()) }
+    single { AgentCase(controller = get(), contextManager = get(), overflowStore = get()) }
     single {
         SubAgentOrchestrator(
             agentCase = get(),
@@ -146,6 +162,9 @@ val coreModule = module {
             subAgentOrchestrator = get(),
             workspaceCase = get(),
             personaMemoryInjector = get(),
+            commandCase = get(),
+            permissionResolver = get(),
+            permissionDeniedMessageResolver = get(),
             observabilityCase = get(),
         )
     }
@@ -208,6 +227,7 @@ val coreModule = module {
             observabilityCase = get(),
             databaseCase = get(),
             configCase = get(),
+            overflowStore = get(),
         )
     }
 }

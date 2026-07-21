@@ -25,8 +25,10 @@ enum class StageOrder(val level: Int) {
     WHITELIST_CHECK(2),
     RATE_LIMIT(3),
     PREPARE_WORKSPACE(4),
-    PRE_PROCESS(5),
-    PROCESS(6),
-    RESULT_DECORATE(7),
-    RESPOND(8);
+    RESOLVE_PERMISSION(5),
+    COMMAND(6),
+    PRE_PROCESS(7),
+    PROCESS(8),
+    RESULT_DECORATE(9),
+    RESPOND(10);
 }

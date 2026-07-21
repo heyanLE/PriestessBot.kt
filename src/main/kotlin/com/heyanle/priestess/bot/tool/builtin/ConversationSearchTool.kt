@@ -16,6 +16,24 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import kotlinx.serialization.Serializable
+
+@Serializable
+data class ConversationSearchResponse(
+    val results: List<ConversationSearchResponseItem>,
+)
+
+@Serializable
+data class ConversationSearchResponseItem(
+    val conversationId: String,
+    val platform: String,
+    val sessionId: String,
+    val messageId: String,
+    val role: String,
+    val content: String? = null,
+    val snippet: String,
+    val createdAt: Long,
+)
 
 class ConversationSearchTool(
     private val conversationCaseProvider: () -> ConversationCase,

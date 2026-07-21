@@ -30,6 +30,7 @@ class ProcessStage(
     override val order = StageOrder.PROCESS
 
     override suspend fun process(ctx: PipelineContext): Flow<Unit>? {
+        if (ctx.isCommandHandled) return null
         val agentContext = ctx.agentContext
         if (agentContext == null) {
             logger.error { "[PIPELINE-991] AgentContext is null, cannot execute agent" }

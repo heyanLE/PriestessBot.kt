@@ -5,6 +5,7 @@ import com.heyanle.priestess.bot.agent.AgentContext
 import com.heyanle.priestess.bot.agent.orchestration.SubAgentOrchestrator
 import com.heyanle.priestess.bot.config.AgentConfig
 import com.heyanle.priestess.bot.config.PipelineConfig
+import com.heyanle.priestess.bot.config.SubAgentOrchestrationConfig
 import com.heyanle.priestess.bot.conversation.ConversationCase
 import com.heyanle.priestess.bot.conversation.MessageRole
 import com.heyanle.priestess.bot.pipeline.PipelineContext
@@ -15,6 +16,8 @@ import com.heyanle.priestess.bot.persona.PersonaMemoryInjector
 import com.heyanle.priestess.bot.provider.model.ConversationMessage
 import com.heyanle.priestess.bot.skill.PipelineSkillState
 import com.heyanle.priestess.bot.skill.SkillCase
+import com.heyanle.priestess.bot.pipeline.PermissionDeniedMessageResolver
+import com.heyanle.priestess.bot.pipeline.PermissionMessageContext
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -29,12 +32,14 @@ import kotlinx.serialization.json.Json
  */
 class PreProcessStage(
     private val agentConfig: AgentConfig,
+    private val subAgentConfig: SubAgentOrchestrationConfig? = null,
     private val pipelineConfig: PipelineConfig,
     private val conversationCase: ConversationCase,
     private val agentCase: AgentCase,
     private val subAgentOrchestrator: SubAgentOrchestrator? = null,
     private val personaMemoryInjector: PersonaMemoryInjector? = null,
     private val skillCase: SkillCase? = null,
+    private val permissionDeniedMessageResolver: PermissionDeniedMessageResolver = PermissionDeniedMessageResolver.Default,
 ) : Stage {
     private val logger = KotlinLogging.logger {}
     private val json = Json { encodeDefaults = true }
@@ -43,6 +48,7 @@ class PreProcessStage(
     override val order = StageOrder.PRE_PROCESS
 
     override suspend fun process(ctx: PipelineContext): Flow<Unit> {
+        if (ctx.isCommandHandled) return flow {}
         val session = ctx.event.session
         val platform = ctx.event.platform
         val resolution = ctx.workspaceResolution
@@ -72,13 +78,18 @@ class PreProcessStage(
         val primaryAgentConfig = snapshot.agentConfigs
             .firstOrNull()
             ?: agentConfig
-        val orchestrationConfig = snapshot.config.subAgents
+        val orchestrationConfig = snapshot.config.subAgents.takeUnless {
+            it == SubAgentOrchestrationConfig()
+        } ?: subAgentConfig ?: SubAgentOrchestrationConfig()
         val selection = subAgentOrchestrator?.select(
             message = ctx.textContent,
             primaryAgent = primaryAgentConfig,
             config = orchestrationConfig,
         )
         val selectedAgentConfig = selection?.agentConfig ?: primaryAgentConfig
+        ctx.shared["subAgentSelectionAgent"] = selectedAgentConfig.name
+        ctx.shared["subAgentSelectionRoute"] = selection?.routeName
+        ctx.shared["subAgentSelectionReason"] = selection?.reason ?: "primary_agent"
         val selectedProviderName = when {
             selection != null &&
                 selection.agentName != primaryAgentConfig.name &&
@@ -161,11 +172,16 @@ class PreProcessStage(
             platform = platform,
             session = session,
             messages = messages,
-            metadata = buildAgentMetadata(ctx, selectedProviderName) + (injection?.metadata ?: emptyMap()),
+            metadata = buildAgentMetadata(ctx, selectedProviderName) + mapOf(
+                "permissionDeniedMessage" to permissionDeniedMessageResolver.resolve(
+                    PermissionMessageContext(snapshot.id, agent.name),
+                ),
+            ) + (injection?.metadata ?: emptyMap()),
             scopedTools = snapshot.mcpResources.map { it.tool },
             skillState = skillCase
-                ?.getWorkspaceSkillState(snapshot)
+                ?.getWorkspaceSkillState(snapshot, ctx.permissionGroup)
                 ?: PipelineSkillState(),
+            permissionGroup = ctx.permissionGroup,
         )
 
         logger.info {
@@ -246,6 +262,7 @@ class PreProcessStage(
             "workspaceMemoryAllowedScopes" to snapshot.memoryPolicy.allowedScopes.joinToString(","),
             "workspaceMemoryKnowledgeBaseIds" to snapshot.memoryPolicy.knowledgeBaseIds.joinToString(","),
             "workspaceMemoryMaxInjected" to snapshot.memoryPolicy.maxInjectedMemories.toString(),
+            "permissionGroup" to ctx.permissionGroup.name,
         )
     }
 }

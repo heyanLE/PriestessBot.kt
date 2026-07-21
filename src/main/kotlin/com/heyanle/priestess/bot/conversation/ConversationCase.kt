@@ -23,6 +23,13 @@ class ConversationCase(
         return controller.getAll()
     }
 
+    fun clearHistory(platform: String, sessionId: String): Conversation {
+        val conversation = controller.getOrCreate(platform, sessionId)
+        history.clear(conversation.id)
+        controller.updateActivity(conversation.id)
+        return conversation
+    }
+
     fun getMessages(conversationId: String, count: Int = 100): List<StoredMessage> {
         return history.getRecentMessages(conversationId, count)
     }

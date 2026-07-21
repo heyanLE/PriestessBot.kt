@@ -5,6 +5,8 @@ import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
+import com.heyanle.priestess.bot.pipeline.PermissionDeniedMessageResolver
+import com.heyanle.priestess.bot.pipeline.PermissionMessageContext
 
 /**
  * 工具执行器，负责解析工具名、校验参数、执行工具并记录调用指标。
@@ -14,6 +16,7 @@ class ToolExecutor(
     private val observabilityCase: ObservabilityCase = ObservabilityCase.standalone(),
     private val policy: ToolPolicy = ToolPolicy.allowAll(),
     private val defaultTimeoutMillis: Long = DEFAULT_TIMEOUT_MILLIS,
+    private val permissionDeniedMessageResolver: PermissionDeniedMessageResolver = PermissionDeniedMessageResolver.Default,
 ) {
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -62,6 +65,21 @@ class ToolExecutor(
             return ToolResult.error(validationError).also {
                 recordToolCall(tool.schema.name, "error")
             }
+        }
+
+        if (!context.permissionGroup.satisfies(tool.schema.requiredPermissionGroup)) {
+            return ToolResult.permissionDenied(
+                ToolPolicyDecision.denied(
+                    code = ToolPolicyDenialCode.INSUFFICIENT_PERMISSION,
+                    message = permissionDeniedMessageResolver.resolve(
+                        PermissionMessageContext(
+                            workspaceId = context.metadata["workspaceId"].orEmpty(),
+                            agentName = context.agentName,
+                        ),
+                    ) + " current=${context.permissionGroup} required=${tool.schema.requiredPermissionGroup}",
+                    auditLog = tool.schema.auditLog,
+                ),
+            ).also { recordToolCall(tool.schema.name, "permission_denied") }
         }
 
         val decision = policy.check(context, tool, args)
@@ -120,7 +138,9 @@ class ToolExecutor(
     }
 
     private fun workspaceToolNames(context: AgentToolContext): Set<String>? {
-        val raw = context.metadata["workspaceToolNames"] ?: return null
+        val raw = context.metadata["workspaceToolNames"]
+            ?: context.metadata["workspace_tool_names"]
+            ?: return null
         return raw.split(",")
             .map { it.trim() }
             .filter { it.isNotBlank() }

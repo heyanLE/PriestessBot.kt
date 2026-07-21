@@ -22,6 +22,11 @@ class AgentController : BaseController("AgentController") {
             compressStrategy = compressStrategy,
             maxContextTokens = config.maxTokens,
             maxContextRounds = config.maxRounds,
+            toolResultInlineTokens = config.toolResultInlineTokens.coerceAtLeast(1),
+            toolResultPreviewTokens = config.toolResultPreviewTokens.coerceIn(1, config.toolResultInlineTokens.coerceAtLeast(1)),
+            toolResultTtlSeconds = config.toolResultTtlSeconds.coerceAtLeast(1),
+            toolResultMaxBytes = config.toolResultMaxBytes.coerceAtLeast(1),
+            toolResultStoreMaxBytes = config.toolResultStoreMaxBytes.coerceAtLeast(config.toolResultMaxBytes.coerceAtLeast(1)),
         )
     }
 }

@@ -115,6 +115,12 @@ class MessageHistory(
         }
     }
 
+    fun clear(conversationId: String) {
+        db.execute {
+            MessagesTable.deleteWhere { MessagesTable.conversationId eq conversationId }
+        }
+    }
+
     fun search(searchQuery: ConversationMessageSearchQuery): List<ConversationSearchResult> {
         val limit = searchQuery.limit.coerceIn(1, 50)
         val normalizedQuery = searchQuery.query.trim()

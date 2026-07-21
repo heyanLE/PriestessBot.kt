@@ -7,6 +7,8 @@ import com.heyanle.priestess.bot.conversation.ConversationCase
 import com.heyanle.priestess.bot.core.controller.BaseController
 import com.heyanle.priestess.bot.observability.ObservabilityCase
 import com.heyanle.priestess.bot.pipeline.stages.PrepareWorkspaceStage
+import com.heyanle.priestess.bot.pipeline.stages.ResolvePermissionStage
+import com.heyanle.priestess.bot.pipeline.stages.CommandStage
 import com.heyanle.priestess.bot.pipeline.stages.PreProcessStage
 import com.heyanle.priestess.bot.pipeline.stages.ProcessStage
 import com.heyanle.priestess.bot.pipeline.stages.RateLimitStage
@@ -52,6 +54,9 @@ class PipelineController private constructor(
         subAgentOrchestrator: SubAgentOrchestrator? = null,
         workspaceCase: WorkspaceCase? = null,
         personaMemoryInjector: PersonaMemoryInjector? = null,
+        commandCase: CommandCase = CommandCase(),
+        permissionResolver: PermissionResolver = PermissionResolver { configCase.current().permission },
+        permissionDeniedMessageResolver: PermissionDeniedMessageResolver = PermissionDeniedMessageResolver.Default,
         observabilityCase: ObservabilityCase = ObservabilityCase.standalone(),
         drainTimeoutMillis: Long = DEFAULT_DRAIN_TIMEOUT_MILLIS,
     ) : this({
@@ -65,6 +70,9 @@ class PipelineController private constructor(
             subAgentOrchestrator = subAgentOrchestrator,
             workspaceCase = workspaceCase,
             personaMemoryInjector = personaMemoryInjector,
+            commandCase = commandCase,
+            permissionResolver = permissionResolver,
+            permissionDeniedMessageResolver = permissionDeniedMessageResolver,
             observabilityCase = observabilityCase,
         )
     }, observabilityCase, drainTimeoutMillis)
@@ -186,6 +194,9 @@ class PipelineController private constructor(
             subAgentOrchestrator: SubAgentOrchestrator?,
             workspaceCase: WorkspaceCase?,
             personaMemoryInjector: PersonaMemoryInjector?,
+            commandCase: CommandCase,
+            permissionResolver: PermissionResolver,
+            permissionDeniedMessageResolver: PermissionDeniedMessageResolver,
             observabilityCase: ObservabilityCase,
         ): List<Stage> {
             val config = configCase.current()
@@ -197,6 +208,13 @@ class PipelineController private constructor(
                     configCase = configCase,
                     workspaceCase = workspaceCase,
                 ),
+                ResolvePermissionStage(permissionResolver),
+                CommandStage(
+                    configProvider = { configCase.current().command },
+                    commandCase = commandCase,
+                    conversationCase = conversationCase,
+                    permissionDeniedMessageResolver = permissionDeniedMessageResolver,
+                ),
                 PreProcessStage(
                     agentConfig = config.agent,
                     pipelineConfig = config.pipeline,
@@ -205,6 +223,7 @@ class PipelineController private constructor(
                     subAgentOrchestrator = subAgentOrchestrator,
                     personaMemoryInjector = personaMemoryInjector,
                     skillCase = skillCase,
+                    permissionDeniedMessageResolver = permissionDeniedMessageResolver,
                 ),
                 ProcessStage(
                     agentCase = agentCase,

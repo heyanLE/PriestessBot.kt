@@ -8,6 +8,7 @@ import com.heyanle.priestess.bot.server.ServerCase
 import com.heyanle.priestess.bot.tool.FunctionTool
 import com.heyanle.priestess.bot.tool.ToolCase
 import com.heyanle.priestess.bot.workspace.WorkspaceCase
+import com.heyanle.priestess.bot.tool.ToolResultOverflowStore
 
 /**
  * 注册所有内置工具，并通过工具模块门面保留实时注册表视图。
@@ -20,6 +21,7 @@ fun registerBuiltinTools(
     memoryCaseProvider: (() -> MemoryCase)? = null,
     reminderCaseProvider: (() -> ReminderCase)? = null,
     workspaceCaseProvider: (() -> WorkspaceCase)? = null,
+    overflowStore: ToolResultOverflowStore = ToolResultOverflowStore(),
 ) {
     fun register(tool: FunctionTool, statusReason: String? = null) {
         registry.registerBuiltinTool(tool, statusReason)
@@ -40,6 +42,7 @@ fun registerBuiltinTools(
         statusReason = if (serverCaseProvider == null) "Requires health dependency" else null,
     )
     register(FetchUrlTool())
+    register(ReadToolResultTool(overflowStore))
     register(
         ConversationSearchTool(conversationCaseProvider ?: { error("Conversation history dependency is unavailable") }),
         statusReason = if (conversationCaseProvider == null) "Requires conversation history dependency" else null,

@@ -329,6 +329,7 @@ class DashboardService(
                 systemPromptTemplate = request.systemPromptTemplate,
                 enabled = request.enabled,
                 agentNames = request.agentNames,
+                errorMessages = request.errorMessages,
             ),
         )
     }

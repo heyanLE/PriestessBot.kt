@@ -16,6 +16,9 @@ import com.heyanle.priestess.bot.workspace.WorkspaceSnapshot
 class PipelineContext(
     val event: MessageEvent,
 ) {
+    /** Cross-stage metadata retained for pipeline integrations and diagnostics. */
+    val shared: MutableMap<String, Any?> = linkedMapOf()
+
     /** Agent 执行上下文，由 PreProcessStage 创建 */
     var agentContext: AgentContext? = null
 
@@ -24,6 +27,10 @@ class PipelineContext(
 
     /** 装饰后的响应文本，由 ResultDecorateStage 填充 */
     var decoratedResponse: String? = null
+
+    var directResponse: String? = null
+
+    var permissionGroup: PermissionGroup = PermissionGroup.OPERATOR
 
     private var workspace: WorkspaceResolution? = null
 
@@ -62,6 +69,9 @@ class PipelineContext(
     fun stop() {
         event.stopPropagation()
     }
+
+    val isCommandHandled: Boolean
+        get() = directResponse != null
 
     /** 便捷：获取事件文本内容 */
     val textContent: String

@@ -95,6 +95,7 @@ class OpenAIProviderTest {
         val body = Json.parseToJsonElement(capturedBody).jsonObject
         val assistant = body["messages"]!!.jsonArray[1].jsonObject
         val toolCall = assistant["tool_calls"]!!.jsonArray.single().jsonObject
+        val toolResult = body["messages"]!!.jsonArray[2].jsonObject
 
         assertEquals("http://192.168.31.24:8090/v1/chat/completions", capturedUrl)
         assertEquals("deepseek-v4-flash", body["model"]!!.jsonPrimitive.content)
@@ -102,6 +103,9 @@ class OpenAIProviderTest {
         assertEquals("function", toolCall["type"]!!.jsonPrimitive.content)
         assertEquals("lookup", toolCall["function"]!!.jsonObject["name"]!!.jsonPrimitive.content)
         assertEquals("""{"query":"ping"}""", toolCall["function"]!!.jsonObject["arguments"]!!.jsonPrimitive.content)
+        assertEquals("tool", toolResult["role"]!!.jsonPrimitive.content)
+        assertEquals("call-1", toolResult["tool_call_id"]!!.jsonPrimitive.content)
+        assertEquals("pong", toolResult["content"]!!.jsonPrimitive.content)
         assertEquals("ok", response.content)
         assertEquals("stop", response.finishReason)
         assertEquals(2, response.tokenUsage.totalTokens)

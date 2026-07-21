@@ -2,6 +2,7 @@ package com.heyanle.priestess.bot.skill
 
 import java.nio.file.Files
 import java.nio.file.Path
+import com.heyanle.priestess.bot.pipeline.PermissionGroup
 
 /**
  * 技能提示文档，保存可注入模型上下文的技能名称和 Markdown 内容。
@@ -20,6 +21,7 @@ data class SkillPromptReference(
     val markdownPath: String? = null,
     val inlineMarkdown: String? = null,
     val settings: Map<String, String> = emptyMap(),
+    val requiredPermissionGroup: PermissionGroup = PermissionGroup.OPERATOR,
 ) {
     fun loadDocument(): SkillPromptDocument {
         val markdown = inlineMarkdown ?: markdownPath
@@ -50,6 +52,7 @@ data class SkillPromptReference(
  */
 class PipelineSkillState(
     availableSkills: List<SkillPromptReference> = emptyList(),
+    private val permissionGroup: PermissionGroup = PermissionGroup.OPERATOR,
 ) {
     private val availableByName = availableSkills.associateBy { it.name }
     private val loadedByName = linkedMapOf<String, SkillPromptDocument>()
@@ -60,8 +63,14 @@ class PipelineSkillState(
     val loadedNames: List<String>
         get() = loadedByName.keys.toList()
 
+    fun requiredPermissionFor(name: String): PermissionGroup? =
+        availableByName[name.trim()]?.requiredPermissionGroup
+
+    fun canLoad(name: String): Boolean = requiredPermissionFor(name)?.let(permissionGroup::satisfies) ?: false
+
     fun load(name: String): SkillPromptDocument? {
         val normalized = name.trim()
+        if (!canLoad(normalized)) return null
         val document = availableByName[normalized]?.loadDocument() ?: return null
         loadedByName[normalized] = document
         return document
@@ -79,6 +88,16 @@ class PipelineSkillState(
                 append("\n\n---\n")
                 append(document.markdown.trim())
             }
+        }
+    }
+
+    fun renderAvailableSkillBlock(): String {
+        if (availableByName.isEmpty()) return "none"
+        return availableByName.values.sortedBy { it.name }.joinToString("\n") { reference ->
+            val warning = if (!permissionGroup.satisfies(reference.requiredPermissionGroup)) {
+                " (当前权限不足：需要 ${reference.requiredPermissionGroup})"
+            } else ""
+            "- ${reference.name}: ${reference.description.ifBlank { "No description." }}$warning"
         }
     }
 }

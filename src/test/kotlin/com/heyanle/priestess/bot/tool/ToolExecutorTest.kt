@@ -3,6 +3,7 @@ package com.heyanle.priestess.bot.tool
 import com.heyanle.priestess.bot.observability.MetricsRegistry
 import com.heyanle.priestess.bot.observability.ObservabilityCase
 import com.heyanle.priestess.bot.testkit.FakeTool
+import com.heyanle.priestess.bot.pipeline.PermissionGroup
 import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -70,6 +71,31 @@ class ToolExecutorTest {
         assertEquals("PERMISSION_DENIED", result.errorCode)
         assertEquals(ToolPolicyDenialCode.DISABLED_TOOL, result.policyDenialCode)
         assertEquals(emptyList(), tool.calls)
+    }
+
+    @Test
+    fun `insufficient sender permission skips tool invocation`() = runBlocking {
+        val controller = ToolController()
+        val tool = FakeTool(
+            schema = ToolSchema(
+                name = "admin_tool",
+                parameters = ToolParameters(required = listOf("value")),
+                requiredPermissionGroup = PermissionGroup.ADMIN,
+            ),
+        )
+        controller.register(tool)
+
+        val result = ToolExecutor(controller).execute(
+            AgentToolContext(permissionGroup = PermissionGroup.OPERATOR),
+            "admin_tool",
+            """{"value":"abc"}""",
+        )
+
+        assertFalse(result.success)
+        assertEquals("PERMISSION_DENIED", result.errorCode)
+        assertEquals(ToolPolicyDenialCode.INSUFFICIENT_PERMISSION, result.policyDenialCode)
+        assertTrue(result.error.contains("current=OPERATOR required=ADMIN"))
+        assertTrue(tool.calls.isEmpty())
     }
 
     @Test

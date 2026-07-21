@@ -20,6 +20,10 @@ class ResultDecorateStage : Stage {
     override val order = StageOrder.RESULT_DECORATE
 
     override suspend fun process(ctx: PipelineContext): Flow<Unit>? {
+        ctx.directResponse?.let {
+            ctx.decoratedResponse = it
+            return null
+        }
         val response = ctx.agentResponse
 
         when (response) {

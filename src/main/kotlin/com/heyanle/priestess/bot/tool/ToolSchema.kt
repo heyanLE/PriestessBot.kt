@@ -8,6 +8,7 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
+import com.heyanle.priestess.bot.pipeline.PermissionGroup
 
 /**
  * JSON Schema definition for a tool's parameters.
@@ -22,18 +23,19 @@ data class ToolSchema @JvmOverloads constructor(
     val requiredCapabilities: List<String> = emptyList(),
     val defaultEnabled: Boolean = true,
     val auditLog: Boolean = false,
+    val requiredPermissionGroup: PermissionGroup = PermissionGroup.OPERATOR,
 ) {
     /**
      * Converts this schema to OpenAI function-calling format.
      * Returns a JsonObject matching the OpenAI tool definition structure:
      * { "type": "function", "function": { "name": "...", "description": "...", "parameters": {...} } }
      */
-    fun toOpenAIFormat(): JsonObject {
+    fun toOpenAIFormat(descriptionOverride: String = description): JsonObject {
         return buildJsonObject {
             put("type", "function")
             putJsonObject("function") {
                 put("name", name)
-                put("description", description)
+                put("description", descriptionOverride)
                 put("parameters", buildJsonObject {
                     put("type", "object")
                     put("properties", parameters.toJsonProperties())

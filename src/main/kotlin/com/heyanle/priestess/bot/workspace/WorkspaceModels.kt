@@ -4,6 +4,7 @@ import com.heyanle.priestess.bot.config.AgentConfig
 import com.heyanle.priestess.bot.config.SubAgentOrchestrationConfig
 import com.heyanle.priestess.bot.tool.FunctionTool
 import com.heyanle.priestess.bot.tool.ToolRiskLevel
+import com.heyanle.priestess.bot.pipeline.PermissionGroup
 import kotlinx.serialization.Serializable
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -34,6 +35,7 @@ data class WorkspaceSkillConfig(
     val name: String,
     val enabled: Boolean = true,
     val settings: Map<String, String> = emptyMap(),
+    val requiredPermissionGroup: PermissionGroup = PermissionGroup.OPERATOR,
 )
 
 @Serializable
@@ -80,6 +82,14 @@ data class WorkspaceResolution(
     val snapshot: WorkspaceSnapshot,
     val reason: String,
     val lease: WorkspaceSnapshotLease? = null,
+)
+
+/** Input used to select an already prepared workspace for an incoming message. */
+data class WorkspaceResolutionContext(
+    val platformName: String = "",
+    val sessionId: String = "",
+    val userId: String = "",
+    val metadata: Map<String, String> = emptyMap(),
 )
 
 data class WorkspaceSnapshotKey(
@@ -135,6 +145,7 @@ data class WorkspaceSkillDescriptor(
     val skillMarkdownPath: String,
     val inlineMarkdown: String? = null,
     val settings: Map<String, String> = emptyMap(),
+    val requiredPermissionGroup: PermissionGroup = PermissionGroup.OPERATOR,
 )
 
 @Serializable
