@@ -1,0 +1,4 @@
+interface:
+  display_name: "Telegram Web Smoke"
+  short_description: "Drive Telegram Web bot smoke tests"
+  default_prompt: "Use $telegram-web-smoke to restart the local server, drive Telegram Web, and verify Telegram bot tool smoke tests."
