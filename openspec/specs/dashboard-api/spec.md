@@ -3,6 +3,7 @@
 ## Purpose
 TBD - created by archiving change sub-agent-routing-foundation. Update Purpose after archive.
 ## Requirements
+
 ### Requirement: Sub-agent Dashboard API
 The Dashboard API SHALL expose sub-agent orchestration config and test routes.
 
@@ -116,7 +117,7 @@ The system SHALL provide an optional Ktor Dashboard API server that runs in the 
 - **AND** publishes updated config flows to runtime controllers
 
 ### Requirement: Runtime management endpoints
-The system SHALL expose management endpoints for platforms, providers, tools, conversations, and plugins.
+The system SHALL expose management endpoints for platforms, providers, tools, conversations, plugins, and workspaces.
 
 #### Scenario: Platform list
 - **WHEN** a dashboard client calls `GET /api/platforms`
@@ -133,6 +134,38 @@ The system SHALL expose management endpoints for platforms, providers, tools, co
 #### Scenario: Conversation history
 - **WHEN** a dashboard client calls `GET /api/conversations/{id}/messages`
 - **THEN** the server returns stored messages for that conversation
+
+#### Scenario: Workspace list
+- **WHEN** a dashboard client calls `GET /api/workspaces`
+- **THEN** the server returns workspace status entries with id, name, enabled state, active snapshot version, loaded timestamp, last reload result, and diagnostic summary
+
+#### Scenario: Workspace detail
+- **GIVEN** a workspace has an active snapshot
+- **WHEN** a dashboard client calls `GET /api/workspaces/{id}`
+- **THEN** the server returns workspace detail including config summary, active snapshot version, reload status, resolution metadata, and scoped resource counts
+- **AND** secret values are redacted
+
+#### Scenario: Reload workspace
+- **WHEN** a dashboard client calls `POST /api/workspaces/{id}/reload`
+- **THEN** the server reloads that workspace
+- **AND** returns a `WorkspaceReloadResult`
+
+#### Scenario: Reload all workspaces
+- **WHEN** a dashboard client calls `POST /api/workspaces/reload`
+- **THEN** the server reloads all configured workspaces
+- **AND** returns per-workspace `WorkspaceReloadResult` entries
+
+#### Scenario: Workspace scoped resource endpoints
+- **GIVEN** a workspace has an active snapshot
+- **WHEN** a dashboard client calls `/api/workspaces/{id}/tools`, `/api/workspaces/{id}/mcp`, `/api/workspaces/{id}/skills`, `/api/workspaces/{id}/personas`, or `/api/workspaces/{id}/memory`
+- **THEN** the server returns the scoped resource summary for that workspace snapshot
+- **AND** omits or redacts secrets
+
+#### Scenario: Failed reload status is visible
+- **GIVEN** a workspace reload failed
+- **WHEN** a dashboard client requests workspace status or detail
+- **THEN** the response includes the failed reload status, timestamp, and error summary
+- **AND** reports the still-active snapshot version
 
 ### Requirement: Log WebSocket foundation
 The system SHALL provide a WebSocket endpoint for dashboard log/event streaming.
@@ -160,12 +193,16 @@ The Dashboard health endpoint SHALL include lightweight diagnostics that help op
 - **THEN** the diagnostics SHALL NOT include provider API keys or platform tokens
 
 ### Requirement: Dashboard API client
-The Dashboard frontend API client SHALL expose typed functions for backend Dashboard operations used by frontend views.
+The Dashboard frontend API client SHALL expose typed functions for backend Dashboard operations used by frontend views, including workspace operations.
 
 #### Scenario: Sub-agent endpoints are callable
 - **WHEN** a frontend view needs sub-agent orchestration data
 - **THEN** the API client provides typed functions for reading config, replacing config, and running a test execution
 - **AND** the request and response types include selected agent, selected route, selection reason, events, and content
+
+#### Scenario: Workspace endpoints are callable
+- **WHEN** a frontend view needs workspace data
+- **THEN** the API client provides typed functions for listing workspaces, reading workspace detail, reloading one workspace, reloading all workspaces, and reading scoped tools, MCP servers, skills, personas, and memory summaries
 
 ### Requirement: Dashboard log WebSocket SHALL stream runtime logs
 
@@ -241,3 +278,120 @@ The Dashboard API SHALL allow operators to list config backups and restore a sel
 - **WHEN** an operator requests `POST /api/config/backups/{id}/restore`
 - **THEN** the API SHALL restore the backup
 - **AND** the response SHALL include the restored effective config
+
+### Requirement: Dashboard API routes SHALL have contract test coverage
+Dashboard API routes SHALL be covered by route contract tests that verify HTTP status, authentication behavior where applicable, request/response JSON shape, and service/controller delegation.
+
+#### Scenario: Existing management routes are covered
+- **WHEN** Dashboard API tests run
+- **THEN** they SHALL cover health, metrics, config read/write/reload, platforms, providers, tools, conversations, plugins, logs WebSocket, sub-agent, knowledge, and Agent chat routes that exist in the runtime
+
+#### Scenario: Authentication contracts are covered
+- **WHEN** API token authentication is enabled or disabled
+- **THEN** route tests SHALL verify protected routes reject missing or invalid credentials and public routes remain reachable
+
+#### Scenario: Error response contracts are covered
+- **WHEN** a route receives invalid input, references a missing resource, or the service layer returns a domain error
+- **THEN** route tests SHALL verify the HTTP status and JSON error body are stable
+
+#### Scenario: Future workspace routes require tests
+- **WHEN** workspace Dashboard routes are introduced
+- **THEN** route contract tests SHALL cover workspace listing, detail, reload, tools, MCP, skills, personas, and memory views
+
+#### Scenario: Future persona and memory routes require tests
+- **WHEN** persona or memory Dashboard routes are introduced
+- **THEN** route contract tests SHALL cover create, update, list, search, delete, expire, and error paths for those APIs
+
+### Requirement: Persona Dashboard API
+The Dashboard API SHALL expose CRUD routes for operator-managed personas.
+
+#### Scenario: List personas
+- **GIVEN** personas exist for a workspace
+- **WHEN** an operator requests `GET /api/personas`
+- **THEN** the API returns personas with id, workspace id, name, description, tone, boundaries, prompt template, enabled state, agent names, and timestamps
+
+#### Scenario: Create persona
+- **GIVEN** the Dashboard API is running
+- **WHEN** an operator posts a valid persona create request to `POST /api/personas`
+- **THEN** the API persists and returns the created persona
+
+#### Scenario: Update persona
+- **GIVEN** a persona exists
+- **WHEN** an operator sends `PUT /api/personas/{id}` with valid changes
+- **THEN** the API persists and returns the updated persona
+
+#### Scenario: Delete persona
+- **GIVEN** a persona exists
+- **WHEN** an operator sends `DELETE /api/personas/{id}`
+- **THEN** the persona is removed from list and resolve results
+
+### Requirement: Memory Dashboard API
+The Dashboard API SHALL expose list, create, search, delete, and expiry routes for memory records.
+
+#### Scenario: List memory
+- **GIVEN** memory records exist
+- **WHEN** an operator requests `GET /api/memory` with optional filters
+- **THEN** the API returns matching non-deleted and non-expired memory records
+
+#### Scenario: Create memory
+- **GIVEN** the Dashboard API is running
+- **WHEN** an operator posts a valid memory create request to `POST /api/memory`
+- **THEN** the API persists and returns the created memory record
+
+#### Scenario: Search memory
+- **GIVEN** memory records exist for the requested scope context
+- **WHEN** an operator posts a query to `POST /api/memory/search`
+- **THEN** the API returns matching memory records with scores and match reasons
+
+#### Scenario: Delete memory
+- **GIVEN** a memory record exists
+- **WHEN** an operator sends `DELETE /api/memory/{id}`
+- **THEN** the memory record is excluded from future list, search, recall, and injection results
+
+#### Scenario: Expire memory
+- **GIVEN** expired memory records exist
+- **WHEN** an operator sends `POST /api/memory/expire`
+- **THEN** the API runs expiry cleanup and returns the number of affected records
+
+### Requirement: Agent chat injection trace API
+The Dashboard API SHALL include persona and memory injection trace in Agent chat test responses.
+
+#### Scenario: Chat response includes injection trace
+- **GIVEN** persona or memory injection runs during `/api/agent/chat`
+- **WHEN** the chat response is returned
+- **THEN** the response includes injected persona id and name when present
+- **AND** includes injected memory ids, scores, and match reasons
+
+#### Scenario: Chat response omits empty trace details
+- **GIVEN** no persona or memory is injected
+- **WHEN** the chat response is returned
+- **THEN** the response remains valid
+- **AND** the trace is empty or explicitly reports no injection
+
+### Requirement: Dashboard Tool API SHALL expose tool policy state
+The Dashboard API SHALL expose tool permission, enablement, source, and runtime status metadata.
+
+#### Scenario: Tool list includes policy state
+- **WHEN** a dashboard client calls `GET /api/tools`
+- **THEN** each tool item SHALL include name, description, source, owner when available, risk level, required capabilities, default enabled state, effective enabled state, audit flag, and status reason when unavailable
+
+#### Scenario: Tool list includes built-in and plugin tools
+- **GIVEN** built-in and plugin tools are registered
+- **WHEN** a dashboard client calls `GET /api/tools`
+- **THEN** the response SHALL include both built-in and plugin tools with their source classification
+
+#### Scenario: Tool health does not expose secrets
+- **GIVEN** a tool is backed by provider, platform, plugin, memory, reminder, or network configuration
+- **WHEN** a dashboard client requests tool metadata
+- **THEN** the response SHALL NOT include API keys, tokens, prompts, message bodies, or memory contents
+
+### Requirement: Dashboard health data SHALL align with health_check tool
+The Dashboard API health data SHALL provide the same non-sensitive operational components used by the `health_check` built-in tool.
+
+#### Scenario: Health components align
+- **WHEN** a client requests `GET /health`
+- **THEN** the response SHALL include component and diagnostic categories for database, providers, platforms, plugins, tools, and workspace reload state
+
+#### Scenario: Health alignment preserves public endpoint safety
+- **WHEN** a client requests `GET /health`
+- **THEN** the response SHALL remain non-sensitive and suitable for unauthenticated health checks when Dashboard token auth leaves health public

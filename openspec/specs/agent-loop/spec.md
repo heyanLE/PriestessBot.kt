@@ -3,6 +3,7 @@
 ## Purpose
 TBD - created by archiving change priestess-v1-core. Update Purpose after archive.
 ## Requirements
+
 ### Requirement: AgentRunner interface with per-message isolation
 The system SHALL define `AgentRunner` interface with `reset()`, `step()`, `stepUntilDone()`, `isDone()`. Each Runner instance SHALL serve exactly one message chain and be discarded after completion.
 
@@ -49,6 +50,12 @@ The system SHALL implement `ReActRunner` that iterates: check context → call L
 - **WHEN** the loop reaches maxSteps without a final answer
 - **THEN** `AgentResponse.Error` is emitted
 
+#### Scenario: Persona and memory are available before first LLM call
+- **GIVEN** persona or memory injection is enabled for the current workspace
+- **WHEN** the Agent runner builds the initial LLM messages
+- **THEN** the system message includes the injected persona and memory prompt section
+- **AND** the first LLM call receives the enhanced instructions
+
 ### Requirement: Context compression strategy interface
 The system SHALL define `ContextCompressStrategy` interface with configurable implementations.
 
@@ -71,6 +78,11 @@ The system SHALL include `Platform` and `MessageSession` references in `AgentCon
 - **WHEN** a tool needs to send a proactive message during the loop
 - **THEN** it retrieves the Platform and MessageSession from AgentContext and calls `platform.sendMessage()`
 
+#### Scenario: Context carries persona and memory injection trace
+- **GIVEN** persona and memory injection ran while preparing the Agent context
+- **WHEN** Agent hooks, tools, or Dashboard chat response builders inspect the context metadata
+- **THEN** they can read the injected persona id and injected memory result metadata
+
 ### Requirement: Context compression strategies SHALL be safe to execute
 
 Configured context compression strategies SHALL compress conversation history without crashing the Agent loop for supported strategy names.
@@ -88,3 +100,64 @@ Configured context compression strategies SHALL compress conversation history wi
 
 - **WHEN** the `llm_compress` strategy is inspected
 - **THEN** its strategy name SHALL remain `llm_compress`
+
+### Requirement: ReActRunner SHALL have unit test coverage for core state transitions
+`ReActRunner` behavior SHALL be covered by deterministic unit tests for final responses, tool-call loops, provider failures, tool failures, max-step limits, and terminal states.
+
+#### Scenario: Final response without tool call is tested
+- **WHEN** a fake provider returns assistant text without tool calls
+- **THEN** a unit test SHALL verify `ReActRunner` emits `AgentResponse.Final` and transitions to `DONE`
+
+#### Scenario: Tool-call loop is tested
+- **WHEN** a fake provider first returns a tool call and later returns a final response after receiving the observation
+- **THEN** a unit test SHALL verify assistant and tool messages are appended before the loop continues
+
+#### Scenario: Tool failure observation is tested
+- **WHEN** the tool executor returns or throws a tool failure during a tool call
+- **THEN** a unit test SHALL verify the failure is converted into an observation that the Agent loop can pass back to the provider
+
+#### Scenario: Provider exception is tested
+- **WHEN** the provider throws during an Agent step
+- **THEN** a unit test SHALL verify `ReActRunner` emits `AgentResponse.Error` and transitions to `ERROR`
+
+#### Scenario: Max steps exceeded is tested
+- **WHEN** the fake provider keeps returning tool calls until `maxSteps` is exceeded
+- **THEN** a unit test SHALL verify `ReActRunner` emits `AgentResponse.Error`
+
+#### Scenario: Terminal state step behavior is tested
+- **WHEN** `step()` is called after the runner is already `DONE` or `ERROR`
+- **THEN** a unit test SHALL verify the runner does not restart the message chain or duplicate side effects
+
+### Requirement: Context compression SHALL have unit test coverage
+Context compression behavior SHALL be covered by deterministic unit tests for round truncation, token window, and LLM compression fallback behavior.
+
+#### Scenario: Round truncation is tested
+- **WHEN** conversation history exceeds the configured round count
+- **THEN** a unit test SHALL verify only the allowed recent rounds remain
+
+#### Scenario: Token window is tested
+- **WHEN** conversation history exceeds the configured token budget
+- **THEN** a unit test SHALL verify older messages are trimmed while required system context is preserved
+
+#### Scenario: LLM compression fallback is tested
+- **WHEN** LLM compression cannot call a provider or returns an unusable result
+- **THEN** a unit test SHALL verify fallback compression completes without crashing the Agent loop
+
+### Requirement: Agent tool timeout SHALL be honored
+The Agent loop SHALL pass the configured tool timeout to tool execution so tool calls cannot block an Agent run indefinitely.
+
+#### Scenario: Agent timeout config reaches executor
+- **GIVEN** an Agent has `toolTimeoutMs` configured
+- **WHEN** the Agent loop executes a tool call
+- **THEN** the configured timeout SHALL be passed to `ToolExecutor`
+
+#### Scenario: Tool timeout produces observable event
+- **GIVEN** a tool call exceeds `toolTimeoutMs`
+- **WHEN** the Agent loop receives the timeout result
+- **THEN** the loop SHALL append the timeout observation for the model
+- **AND** tool start/end events SHALL expose the timeout status
+
+#### Scenario: Missing timeout uses runtime default
+- **GIVEN** an Agent does not configure `toolTimeoutMs`
+- **WHEN** the Agent loop executes a tool call
+- **THEN** the runtime default tool timeout SHALL be used

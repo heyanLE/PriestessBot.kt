@@ -3,13 +3,19 @@
 ## Purpose
 TBD - created by archiving change sub-agent-routing-foundation. Update Purpose after archive.
 ## Requirements
+
 ### Requirement: Sub-agent routing config
-The system SHALL support serializable sub-agent orchestration configuration.
+The system SHALL support serializable sub-agent orchestration configuration scoped by workspace.
 
 #### Scenario: Default config is backward-compatible
 - **GIVEN** an existing config file without orchestration fields
 - **WHEN** it is decoded
 - **THEN** orchestration defaults are available without failing config load
+
+#### Scenario: Workspace provides agent and persona scope
+- **GIVEN** a workspace config defines agents and personas
+- **WHEN** the workspace snapshot is built
+- **THEN** the snapshot exposes only the agents and personas configured for that workspace
 
 ### Requirement: Keyword route selection
 The system SHALL route messages to sub-agents by deterministic keyword rules.
@@ -25,15 +31,20 @@ The system SHALL route messages to sub-agents by deterministic keyword rules.
 - **THEN** the orchestrator selects the configured default sub-agent or the primary Agent
 
 ### Requirement: Routed Agent execution
-The system SHALL execute the selected sub-agent using the existing Agent runtime.
+The system SHALL execute the selected sub-agent using the existing Agent runtime within the resolved workspace snapshot.
 
 #### Scenario: Selected Agent returns final response
 - **GIVEN** a selected sub-agent provider is available
 - **WHEN** the orchestrator runs a message
 - **THEN** the response includes the selected agent name and final content
 
+#### Scenario: Selected agent uses workspace provider and persona
+- **GIVEN** a message resolved workspace snapshot version `N`
+- **WHEN** the orchestrator selects an agent for that message
+- **THEN** the selected agent, provider selection, persona, and execution limits are read from snapshot version `N`
+
 ### Requirement: Sub-agent route selection
-The system SHALL select a configured sub-agent deterministically from an incoming message.
+The system SHALL select a configured sub-agent deterministically from an incoming message within the resolved workspace.
 
 #### Scenario: Pipeline uses selected sub-agent
 - **GIVEN** sub-agent orchestration is enabled
@@ -46,3 +57,8 @@ The system SHALL select a configured sub-agent deterministically from an incomin
 - **GIVEN** sub-agent orchestration is disabled or has no matching/default agent
 - **WHEN** an incoming platform message reaches pipeline pre-processing
 - **THEN** the primary configured Agent is used as before
+
+#### Scenario: Route selection is workspace-scoped
+- **GIVEN** two workspaces define different route targets for the same keyword
+- **WHEN** messages resolve different workspace snapshots
+- **THEN** each message uses the route target from its resolved workspace snapshot

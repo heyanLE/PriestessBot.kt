@@ -3,6 +3,7 @@
 ## Purpose
 TBD - created by archiving change dashboard-frontend-foundation. Update Purpose after archive.
 ## Requirements
+
 ### Requirement: Dashboard frontend application
 The system SHALL include a Vue-based Dashboard frontend that can be built independently from the Kotlin backend.
 
@@ -12,16 +13,20 @@ The system SHALL include a Vue-based Dashboard frontend that can be built indepe
 - **THEN** the build produces static assets under the frontend distribution directory
 
 ### Requirement: Operational navigation
-The Dashboard frontend SHALL provide navigation for v2 operational areas.
+The Dashboard frontend SHALL provide navigation for v2 and v3 operational areas.
 
 #### Scenario: Operator moves between sections
 - **GIVEN** the Dashboard frontend is open
 - **WHEN** the operator selects a navigation item
 - **THEN** the matching view is shown without a full page reload
 
-### Requirement: API-backed status views
+#### Scenario: Navigate to workspace page
+- **WHEN** an operator opens the Dashboard sidebar
+- **THEN** a Workspaces navigation entry is visible
+- **AND** selecting it opens `/workspaces`
 
-The Dashboard frontend SHALL use backend REST APIs for health, platforms, providers, tools, conversations, plugins, configuration, and config backups.
+### Requirement: API-backed status views
+The Dashboard frontend SHALL use backend REST APIs for health, platforms, providers, tools, conversations, plugins, configuration, config backups, and workspaces.
 
 #### Scenario: Runtime config view lists backups
 
@@ -36,6 +41,35 @@ The Dashboard frontend SHALL use backend REST APIs for health, platforms, provid
 - **WHEN** an operator selects restore for that backup
 - **THEN** the Dashboard SHALL call `POST /api/config/backups/{id}/restore`
 - **AND** update the active config editor with the restored config
+
+#### Scenario: Workspace view lists statuses
+- **GIVEN** the Dashboard frontend is open
+- **WHEN** the Workspaces view loads
+- **THEN** it requests `GET /api/workspaces`
+- **AND** displays each workspace id, name, enabled state, active snapshot version, loaded timestamp, and last reload status
+
+#### Scenario: Workspace detail shows scoped summaries
+- **GIVEN** an operator selects a workspace
+- **WHEN** the workspace detail panel loads
+- **THEN** it displays scoped summaries for skills, MCP servers/tools, built-in/plugin tools, personas, and memory policy
+- **AND** displays the active snapshot version and recent reload errors when present
+
+#### Scenario: Operator reloads one workspace
+- **GIVEN** a workspace is visible in the Workspaces view
+- **WHEN** the operator triggers reload for that workspace
+- **THEN** the frontend calls `POST /api/workspaces/{id}/reload`
+- **AND** updates the displayed status from the returned reload result
+
+#### Scenario: Operator reloads all workspaces
+- **WHEN** the operator triggers reload all
+- **THEN** the frontend calls `POST /api/workspaces/reload`
+- **AND** updates each displayed workspace status from the returned results
+
+#### Scenario: Failed reload keeps active snapshot visible
+- **GIVEN** a workspace reload fails
+- **WHEN** the Workspaces view refreshes
+- **THEN** it shows the failure summary
+- **AND** still shows the active snapshot version that remains in use
 
 ### Requirement: Realtime log stream
 The Dashboard frontend SHALL connect to the backend log WebSocket.
@@ -52,6 +86,7 @@ The Dashboard frontend SHALL connect to the backend log WebSocket.
 - **WHEN** the Log view opens
 - **THEN** it connects to `/ws/logs`
 - **AND** renders connected, buffered, and live log events
+
 ### Requirement: Knowledge management view
 The Dashboard frontend SHALL provide a Knowledge view for operator-managed RAG content.
 
@@ -183,3 +218,93 @@ The Dashboard frontend SHALL attach an operator-provided API token to protected 
 - **GIVEN** a Dashboard API token is available in browser storage
 - **WHEN** the Log view connects to `/ws/logs`
 - **THEN** the WebSocket URL SHALL include the token query parameter
+
+### Requirement: Persona management view
+The Dashboard frontend SHALL provide a Persona view for managing Agent personas.
+
+#### Scenario: Operator opens Persona view
+- **GIVEN** the Dashboard is running
+- **WHEN** the operator opens `/personas`
+- **THEN** the frontend loads personas from the Dashboard API
+- **AND** displays persona name, enabled state, assigned agents, and update time
+
+#### Scenario: Operator creates or edits persona
+- **GIVEN** the Persona view is open
+- **WHEN** the operator submits valid persona fields
+- **THEN** the frontend calls the persona create or update API
+- **AND** refreshes the displayed persona list
+
+#### Scenario: Operator deletes persona
+- **GIVEN** a persona is listed
+- **WHEN** the operator confirms deletion
+- **THEN** the frontend calls `DELETE /api/personas/{id}`
+- **AND** removes the persona from the list after success
+
+### Requirement: Memory management view
+The Dashboard frontend SHALL provide a Memory view for managing long-term memory records.
+
+#### Scenario: Operator opens Memory view
+- **GIVEN** the Dashboard is running
+- **WHEN** the operator opens `/memory`
+- **THEN** the frontend loads memory records from the Dashboard API
+- **AND** displays type, scope, tags, confidence, expiry, and update time
+
+#### Scenario: Operator filters and searches memory
+- **GIVEN** memory records exist
+- **WHEN** the operator applies filters or submits a search query
+- **THEN** the frontend calls the matching memory list or search API
+- **AND** displays result scores and match reasons for search results
+
+#### Scenario: Operator creates memory
+- **GIVEN** the Memory view is open
+- **WHEN** the operator submits valid memory content, type, scope, and required scope keys
+- **THEN** the frontend calls `POST /api/memory`
+- **AND** refreshes the displayed memory list
+
+#### Scenario: Operator deletes memory by exact id
+- **GIVEN** a memory record is listed
+- **WHEN** the operator confirms deletion for that record
+- **THEN** the frontend calls `DELETE /api/memory/{id}`
+- **AND** removes the record from the list after success
+
+#### Scenario: Operator runs memory expiry cleanup
+- **GIVEN** the Memory view is open
+- **WHEN** the operator triggers expiry cleanup
+- **THEN** the frontend calls `POST /api/memory/expire`
+- **AND** displays the affected record count
+
+### Requirement: Agent chat injection trace display
+The Dashboard frontend SHALL show persona and memory injection trace returned by the Agent chat test API.
+
+#### Scenario: Operator inspects chat injection trace
+- **GIVEN** an Agent chat test response includes injection trace
+- **WHEN** the Agent view renders the response
+- **THEN** the view displays the injected persona id or name
+- **AND** displays injected memory ids, scores, and match reasons
+
+#### Scenario: Empty injection trace is handled
+- **GIVEN** an Agent chat test response has no injected persona or memory
+- **WHEN** the Agent view renders the response
+- **THEN** the view remains usable without showing stale trace data from an earlier run
+
+### Requirement: Dashboard ToolView SHALL show tool policy and status
+The Dashboard frontend SHALL provide a ToolView that lets operators inspect registered tool permission, enablement, source, and health/status state.
+
+#### Scenario: ToolView renders policy metadata
+- **GIVEN** the ToolView loads tool metadata from the Dashboard API
+- **WHEN** tools are displayed
+- **THEN** each tool row SHALL show name, description, source, risk level, effective enabled state, default enabled state, audit flag, and unavailable/status reason when present
+
+#### Scenario: ToolView supports operational filtering
+- **GIVEN** the ToolView has loaded tools
+- **WHEN** an operator filters by source, risk level, enabled state, or text query
+- **THEN** the visible tools SHALL match the selected filters
+
+#### Scenario: ToolView highlights risky and unavailable tools
+- **GIVEN** a tool is high risk, disabled, or unavailable
+- **WHEN** the ToolView renders that tool
+- **THEN** the tool state SHALL be visually distinguishable from enabled safe-read tools
+
+#### Scenario: ToolView uses typed API model
+- **WHEN** frontend code consumes the tool API
+- **THEN** the API client types SHALL include tool source, risk level, required capabilities, default enabled state, effective enabled state, audit flag, and status reason
